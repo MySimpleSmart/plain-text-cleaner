@@ -119,7 +119,8 @@
       .print-content.numbered .print-line::before, .print-content.numbered tr > :first-child::before { content: '#' attr(data-line); position: absolute; right: calc(100% + 24px); color: #a3a29e; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .print-content.numbered tr { position: relative; }
       .print-content.numbered tr > :first-child::before { top: 4px; }
-      .print-document table { width: 100%; table-layout: fixed; }
+      .print-document table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+      .print-document th, .print-document td { border: 1px solid #cccccc; padding: 4px 8px; text-align: left; font-weight: normal; white-space: pre-wrap; }
       .print-document tr { break-inside: avoid; }
     }
   </style>
@@ -187,6 +188,11 @@
               </button>
             </div>
           </fieldset>
+          <fieldset>
+            <legend>Privacy</legend>
+            <label><input type="checkbox" id="save-drafts">Save drafts in this browser</label>
+            <button id="clear-private" class="setting-action" type="button">Clear editor and saved drafts</button>
+          </fieldset>
         </div>
       </details>
     </div>
@@ -224,7 +230,7 @@
       <div id="page-sheets" class="page-sheets" aria-hidden="true" hidden></div>
       <div id="line-numbers" class="line-numbers" aria-hidden="true" hidden></div>
       <div id="search-highlights" class="search-highlights" aria-hidden="true" hidden></div>
-      <textarea id="text" aria-label="Document text" aria-describedby="editor-help" placeholder="Paste or type text here…" spellcheck="false" autofocus></textarea>
+      <textarea id="text" aria-label="Document text" aria-describedby="editor-help" placeholder="Paste or type text here…" maxlength="500000" spellcheck="false" autofocus></textarea>
       <div id="empty-hint" class="empty-hint" aria-hidden="true" hidden>Paste or type text here…</div>
       <div id="case-actions" class="case-actions" role="group" aria-label="Change selected text case" hidden>
         <button id="case-upper" class="icon-button" aria-label="UPPERCASE selected text" title="UPPERCASE" disabled><span aria-hidden="true">AA</span></button>
@@ -250,7 +256,7 @@
     </div>
     <div class="statusbar">
       <span id="status">0 words · 0 characters</span>
-      <span id="save-status" role="status" aria-live="polite">Saved in this browser only</span>
+      <span id="save-status" role="status" aria-live="polite">Not saved in this browser</span>
     </div>
   </main>
   <div id="message" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -901,27 +907,64 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const words = new Intl.Segmenter(undefined, { granularity: 'word' });
     const storageKey = 'plain-text-cleaner.document.v1';
     const tableStorageKey = 'plain-text-cleaner.tables.v1';
+    const saveDraftsKey = 'plain-text-cleaner.save-drafts.v1';
+    const saveDraftsToggle = byId('save-drafts');
+    const MAX_DOCUMENT_CHARS = 500000;
+    const MAX_SOURCE_CHARS = 1000000;
+    const MAX_CLIPBOARD_BYTES = 4000000;
+    const MAX_FILE_BYTES = 1000000;
+    const MAX_TABLE_ROWS = 2000;
+    const MAX_TABLE_COLUMNS = 100;
+    const MAX_TABLE_CELLS = 10000;
+    const MAX_DOCUMENT_LINES = 10000;
     let tables = [];
     let tableStateValue = '';
     let saveTimer;
     let storageReady = true;
+    let saveDraftsEnabled = false;
+    let legacyDraftPresent = false;
     let composing = false;
 
     try {
+      saveDraftsEnabled = localStorage.getItem(saveDraftsKey) === 'true';
+      saveDraftsToggle.checked = saveDraftsEnabled;
       const saved = localStorage.getItem(storageKey);
-      if (saved !== null) input.value = saved;
-      saveStatus.textContent = saved ? 'Restored · saved in this browser only' : 'Saved in this browser only';
+      if (saveDraftsEnabled) {
+        if (saved !== null && saved.length <= MAX_DOCUMENT_CHARS) input.value = saved;
+        saveStatus.textContent = saved && saved.length > MAX_DOCUMENT_CHARS ? 'Saved draft exceeds limit · clear in Settings' : saved && input.value ? 'Restored · saved in this browser only' : 'Saved in this browser only';
+      } else if (saved !== null) {
+        legacyDraftPresent = true;
+        saveStatus.textContent = 'Older draft stored · clear in Settings';
+      }
     } catch {
       storageReady = false;
-      saveStatus.textContent = 'Autosave unavailable';
+      saveStatus.textContent = 'Browser storage unavailable';
     }
-    try {
+    if (saveDraftsEnabled && input.value) try {
       const savedTables = JSON.parse(localStorage.getItem(tableStorageKey) || 'null');
-      if (savedTables?.value === input.value && Array.isArray(savedTables.tables)) {
-        tables = savedTables.tables.filter(table => Number.isInteger(table.start) && Number.isInteger(table.end) && table.start >= 0 && table.end > table.start && table.end <= input.value.length && Array.isArray(table.layout));
+      if (savedTables?.value === input.value && Array.isArray(savedTables.tables) && savedTables.tables.length <= MAX_TABLE_CELLS) {
+        tables = savedTables.tables.filter(table => Number.isInteger(table.start) && Number.isInteger(table.end) && table.start >= 0 && table.end > table.start && table.end <= input.value.length && Array.isArray(table.layout) && table.layout.length <= MAX_TABLE_CELLS);
       }
     } catch { /* A damaged table draft must not prevent restoring the text. */ }
     tableStateValue = input.value;
+    saveDraftsToggle.addEventListener('change', () => {
+      saveDraftsEnabled = saveDraftsToggle.checked;
+      clearTimeout(saveTimer);
+      if (saveDraftsEnabled) {
+        try { localStorage.setItem(saveDraftsKey, 'true'); } catch { storageReady = false; }
+        legacyDraftPresent = false;
+        save();
+      } else {
+        let cleared = true;
+        try {
+          localStorage.removeItem(saveDraftsKey);
+          localStorage.removeItem(storageKey);
+          localStorage.removeItem(tableStorageKey);
+        } catch { storageReady = false; cleared = false; }
+        legacyDraftPresent = !cleared;
+        saveStatus.textContent = cleared ? 'Not saved in this browser' : 'Could not clear browser storage';
+      }
+    });
 
     function snapshot() {
       return { value: input.value, start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection, tables: tables.map(table => ({ ...table })) };
@@ -1091,6 +1134,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const baseDocument = caseSession ? caseSession.baseDocument : input.value;
       const baseEnd = caseSession ? caseSession.baseEnd : end;
       const replacement = mode === 'upper' ? original.toUpperCase() : mode === 'lower' ? original.toLowerCase() : original;
+      if (input.value.length - (end - start) + replacement.length > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
       rememberSelection();
       const transform = text => mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : text;
       const mapPosition = position => position <= start ? position : position >= baseEnd ? position + replacement.length - (baseEnd - start) : start + transform(baseDocument.slice(start, position)).length;
@@ -1234,7 +1278,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (!match || composing) return;
       input.setSelectionRange(match.start, match.end);
       rememberSelection();
-      applyEdit(match.start, match.end, replaceValue.value);
+      if (!applyEdit(match.start, match.end, replaceValue.value)) return;
       record();
       selectMatch();
       showMessage('Replaced 1 match');
@@ -1242,6 +1286,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     byId('replace-all').addEventListener('click', () => {
       if (!matches.length || composing) return;
       const count = matches.length;
+      const resultLength = input.value.length + matches.reduce((growth, match) => growth + replaceValue.value.length - (match.end - match.start), 0);
+      if (resultLength > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
       rememberSelection();
       for (const match of [...matches].reverse()) applyEdit(match.start, match.end, replaceValue.value);
       input.setSelectionRange(0, 0);
@@ -1252,6 +1298,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     function save() {
       clearTimeout(saveTimer);
       saveTimer = null;
+      if (!saveDraftsEnabled) { saveStatus.textContent = legacyDraftPresent ? 'Older draft stored · clear in Settings' : 'Not saved in this browser'; return; }
       try {
         // Empty documents remove the previous draft, including after Clear.
         if (input.value) localStorage.setItem(storageKey, input.value);
@@ -1270,8 +1317,10 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       clearMessage();
       update();
       clearTimeout(saveTimer);
-      saveStatus.textContent = storageReady ? 'Saving in this browser…' : 'Not saved · download TXT to keep a copy';
-      saveTimer = setTimeout(save, 250);
+      if (saveDraftsEnabled) {
+        saveStatus.textContent = storageReady ? 'Saving in this browser…' : 'Not saved · download TXT to keep a copy';
+        saveTimer = setTimeout(save, 250);
+      } else saveStatus.textContent = legacyDraftPresent ? 'Older draft stored · clear in Settings' : 'Not saved in this browser';
     }
 
     function rememberSelection() {
@@ -1456,6 +1505,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (!splitState) return;
       const { selection, edits, start, end } = splitState;
       if (input.value !== selection.value || composing) { closeSplit(); showMessage('Text changed · review again'); return; }
+      const resultLength = input.value.length + edits.reduce((growth, edit) => growth + edit.replacement.length - (edit.end - edit.start), 0);
+      if (resultLength > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
       const mapPosition = position => position + edits.filter(edit => edit.end <= position).reduce((delta, edit) => delta + edit.replacement.length - (edit.end - edit.start), 0);
       const selectionStart = mapPosition(start), selectionEnd = mapPosition(end);
       rememberSelection();
@@ -1586,6 +1637,9 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     function applyEdit(start, end, replacement, insertedTables = []) {
       replacement = replacement.replace(/\r\n?/g, '\n');
+      if (input.value.length - (end - start) + replacement.length > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return false; }
+      const lineCount = value => (value.match(/\n/g) || []).length;
+      if (lineCount(input.value) - lineCount(input.value.slice(start, end)) + lineCount(replacement) >= MAX_DOCUMENT_LINES) { showMessage('Document limit: 10,000 lines'); return false; }
       remapTables(start, end, replacement, insertedTables.length === 0);
       input.setRangeText(replacement, start, end, 'end');
       // A newly pasted table replaces structural metadata for any overlapping table.
@@ -1596,6 +1650,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       }
       tables.sort((a, b) => a.start - b.start);
       tableStateValue = input.value;
+      return true;
     }
 
     function reconcileTables() {
@@ -1608,26 +1663,33 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       tableStateValue = input.value;
     }
 
-    function cellText(node) {
+    const ignoredClipboardTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH', 'FORM', 'LINK', 'META', 'BASE', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO']);
+
+    function cellText(node, depth = 0) {
+      if (depth > 32) return '';
       if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
       if (node.nodeType !== Node.ELEMENT_NODE) return '';
-      if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'OBJECT'].includes(node.tagName)) return '';
+      if (ignoredClipboardTags.has(node.tagName)) return '';
       if (node.tagName === 'BR') return '\n';
-      if (node.tagName === 'TABLE') return Array.from(node.rows).filter(row => row.closest('table') === node).map(row => Array.from(row.cells).map(cell => cellText(cell).replace(/^\n+|\n+$/g, '')).join('\t')).join('\n');
-      const content = Array.from(node.childNodes).map(cellText).join('');
+      if (node.tagName === 'TABLE') return Array.from(node.rows).filter(row => row.closest('table') === node).map(row => Array.from(row.cells).map(cell => cellText(cell, depth + 1).replace(/^\n+|\n+$/g, '')).join('\t')).join('\n');
+      const content = Array.from(node.childNodes).map(child => cellText(child, depth + 1)).join('');
       return /^(P|DIV|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName) ? `\n${content}\n` : content;
     }
 
     function readTable(element, selected) {
       const sourceRows = Array.from(element.rows).filter(row => row.closest('table') === element);
+      if (sourceRows.length > MAX_TABLE_ROWS) return false;
       const grid = [], layout = [];
+      let occupiedSlots = 0;
       for (let r = 0; r < sourceRows.length; r++) {
         grid[r] ||= [];
         let c = 0;
         for (const cell of sourceRows[r].cells) {
           while (grid[r][c] !== undefined) c++;
           const rowSpan = Math.min(cell.rowSpan || sourceRows.length - r, sourceRows.length - r);
-          const colSpan = Math.min(cell.colSpan || 1, 1000);
+          const colSpan = cell.colSpan || 1;
+          occupiedSlots += rowSpan * colSpan;
+          if (c + colSpan > MAX_TABLE_COLUMNS || occupiedSlots > MAX_TABLE_CELLS) return false;
           const value = cleanText(cellText(cell).replace(/\r\n?/g, '\n').replace(/^\n+|\n+$/g, ''), selected);
           for (let y = r; y < r + rowSpan; y++) {
             grid[y] ||= [];
@@ -1638,6 +1700,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         }
       }
       const columns = grid.reduce((width, row) => Math.max(width, row.length), 0);
+      if (sourceRows.length * columns > MAX_TABLE_CELLS) return false;
       if (!columns) return null;
       for (const row of grid) for (let c = 0; c < columns; c++) row[c] ??= '';
       return { grid, layout, rows: grid.length, columns };
@@ -1645,32 +1708,42 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     function extractTables(html, selected) {
       if (!html || !/<table[\s>]/i.test(html)) return null;
+      if ((html.match(/<tr[\s>]/gi) || []).length > MAX_TABLE_ROWS || (html.match(/<(?:td|th)[\s>]/gi) || []).length > MAX_TABLE_CELLS) return { tooLarge: true };
       // A template is inert: source scripts, attributes and external resources are never attached.
       const template = document.createElement('template');
       template.innerHTML = html;
       const segments = [];
+      let tooLarge = false;
+      let totalCells = 0;
       let plain = '';
       const flush = () => {
         const cleaned = cleanText(plain.replace(/\r\n?/g, '\n'), selected).replace(/^\n+|\n+$/g, '');
         if (cleaned.trim()) segments.push({ text: cleaned });
         plain = '';
       };
-      const walk = node => {
+      const walk = (node, depth = 0) => {
+        if (depth > 32 || tooLarge) return;
         if (node.nodeType === Node.TEXT_NODE) { plain += node.nodeValue; return; }
         if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
-        if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'OBJECT'].includes(node.tagName)) return;
+        if (ignoredClipboardTags.has(node.tagName)) return;
         if (node.tagName === 'TABLE') {
           const table = readTable(node, selected);
-          if (table) { flush(); segments.push({ text: serializeGrid(table.grid), table }); }
+          if (table === false) { tooLarge = true; return; }
+          if (table) {
+            totalCells += table.rows * table.columns;
+            if (totalCells > MAX_TABLE_CELLS) { tooLarge = true; return; }
+            flush(); segments.push({ text: serializeGrid(table.grid), table });
+          }
           return;
         }
         if (node.tagName === 'BR') { plain += '\n'; return; }
         const block = /^(P|DIV|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName);
         if (block && plain && !plain.endsWith('\n')) plain += '\n';
-        for (const child of node.childNodes) walk(child);
+        for (const child of node.childNodes) walk(child, depth + 1);
         if (block && !plain.endsWith('\n')) plain += '\n';
       };
       walk(template.content); flush();
+      if (tooLarge) return { tooLarge: true };
       if (!segments.some(segment => segment.table)) return null;
       let text = '';
       const extracted = [];
@@ -1686,6 +1759,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     function extractPlainTable(plain, selected) {
       const normalized = plain.replace(/\r\n?/g, '\n').replace(/^\n+|\n+$/g, '');
+      if (normalized.includes('\t') && ((normalized.match(/\n/g) || []).length >= MAX_TABLE_ROWS || (normalized.match(/\t/g) || []).length > MAX_TABLE_CELLS)) return { tooLarge: true };
       const cleanCell = cell => cleanText(cell, selected).trim();
       let grid;
       if (normalized.includes('\t')) {
@@ -1710,7 +1784,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     const escapeHTML = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-    function tableHTML(table, value) {
+    function tableHTML(table, value, styled = true) {
       const grid = parseGrid(value);
       const width = grid.reduce((max, row) => Math.max(max, row.length), 0);
       let layout = table.layout;
@@ -1729,11 +1803,11 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       for (const cell of layout) {
         const tag = cell.header ? 'th' : 'td';
         const spans = `${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ''}${cell.colSpan > 1 ? ` colspan="${cell.colSpan}"` : ''}`;
-        rows[cell.row].push({ col: cell.col, html: `<${tag}${spans} style="border:1px solid #cccccc;padding:4px 8px;text-align:left;font-weight:normal;white-space:pre-wrap">${escapeHTML(grid[cell.row]?.[cell.col] || '').replace(/\n/g, '<br>')}</${tag}>` });
+        rows[cell.row].push({ col: cell.col, html: `<${tag}${spans}${styled ? ' style="border:1px solid #cccccc;padding:4px 8px;text-align:left;font-weight:normal;white-space:pre-wrap"' : ''}>${escapeHTML(grid[cell.row]?.[cell.col] || '').replace(/\n/g, '<br>')}</${tag}>` });
         for (let r = cell.row; r < cell.row + cell.rowSpan; r++) for (let c = cell.col; c < cell.col + cell.colSpan; c++) occupied.add(`${r}:${c}`);
       }
       for (let r = 0; r < grid.length; r++) for (let c = 0; c < width; c++) if (!occupied.has(`${r}:${c}`)) rows[r].push({ col: c, html: `<td>${escapeHTML(grid[r][c] || '').replace(/\n/g, '<br>')}</td>` });
-      return `<table style="border-collapse:collapse"><tbody>${rows.map(row => `<tr>${row.sort((a, b) => a.col - b.col).map(cell => cell.html).join('')}</tr>`).join('')}</tbody></table>`;
+      return `<table${styled ? ' style="border-collapse:collapse"' : ''}><tbody>${rows.map(row => `<tr>${row.sort((a, b) => a.col - b.col).map(cell => cell.html).join('')}</tr>`).join('')}</tbody></table>`;
     }
 
     function clipboardPayload(start = 0, end = input.value.length) {
@@ -1907,7 +1981,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         insertedTables = insertedTables.map(table => ({ ...table, start: table.start + prefix.length, end: table.end + prefix.length }));
       }
       rememberSelection();
-      applyEdit(input.selectionStart, input.selectionEnd, cleaned, insertedTables);
+      if (!applyEdit(input.selectionStart, input.selectionEnd, cleaned, insertedTables)) return false;
       record();
       if (insertedTables.length) showMessage('Table structure preserved');
       if (suggestSplit) suggestPastedWords(start, start + cleaned.length);
@@ -1915,17 +1989,21 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     function insertClipboardText(plain, html = '', suggestSplit = false) {
+      if (plain.length > MAX_SOURCE_CHARS || html.length > MAX_SOURCE_CHARS) { showMessage('Paste limit: 1,000,000 characters'); return false; }
       const selected = Object.fromEntries(options.map(option => [option.id, option.checked]));
       const rich = extractTables(html, selected) || extractPlainTable(plain, selected);
+      if (rich?.tooLarge) { showMessage('Table limit: 10,000 cells'); return false; }
       return insertCleanedText(rich ? rich.text : cleanText(plain, selected), rich?.tables || [], suggestSplit);
     }
 
     async function importFile(file, selection) {
       const extension = file.name.match(/\.(txt|csv|tsv)$/i)?.[1]?.toLowerCase();
       if (!extension) { showMessage('Choose a TXT, CSV or TSV file'); return false; }
+      if (file.size > MAX_FILE_BYTES) { showMessage('File limit: 1 MB'); return false; }
       let source;
       try { source = await file.text(); }
       catch { showMessage('Could not read the file'); return false; }
+      if (source.length > MAX_SOURCE_CHARS) { showMessage('File limit: 1,000,000 characters'); return false; }
       if (input.value !== selection.value || composing) { showMessage('Text changed · open the file again'); return false; }
       input.setSelectionRange(selection.start, selection.end, selection.direction);
       if (extension === 'txt') {
@@ -1939,6 +2017,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (!rows.length) { showMessage('File is empty'); return false; }
       const selected = Object.fromEntries(options.map(option => [option.id, option.checked]));
       const width = Math.max(...rows.map(row => row.length));
+      if (rows.length > MAX_TABLE_ROWS || width > MAX_TABLE_COLUMNS || rows.length * width > MAX_TABLE_CELLS) { showMessage('Table limit: 10,000 cells'); return false; }
       const grid = rows.map(row => Array.from({ length: width }, (_, column) => cleanText(row[column] ?? '', selected)));
       const value = serializeGrid(grid);
       const layout = grid.flatMap((row, rowIndex) => row.map((_, column) => ({ row: rowIndex, col: column, rowSpan: 1, colSpan: 1, header: false })));
@@ -1981,10 +2060,15 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
           const items = await navigator.clipboard.read();
           const item = items.find(item => item.types.includes('text/html') || item.types.includes('text/plain'));
           if (item) {
-            [plain, html] = await Promise.all([
-              item.types.includes('text/plain') ? item.getType('text/plain').then(blob => blob.text()) : '',
-              item.types.includes('text/html') ? item.getType('text/html').then(blob => blob.text()) : ''
+            const [plainBlob, htmlBlob] = await Promise.all([
+              item.types.includes('text/plain') ? item.getType('text/plain') : null,
+              item.types.includes('text/html') ? item.getType('text/html') : null
             ]);
+            if ((plainBlob?.size || 0) > MAX_CLIPBOARD_BYTES || (htmlBlob?.size || 0) > MAX_CLIPBOARD_BYTES) {
+              showMessage('Clipboard limit: 4 MB');
+              return;
+            }
+            [plain, html] = await Promise.all([plainBlob?.text() || '', htmlBlob?.text() || '']);
           }
         } else plain = await navigator.clipboard.readText();
       } catch {
@@ -2029,6 +2113,35 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     byId('undo').addEventListener('click', () => restore(-1));
     byId('redo').addEventListener('click', () => restore(1));
     byId('clear').addEventListener('click', () => { replaceDocument('', 'Cleared · Undo to restore'); save(); });
+    byId('clear-private').addEventListener('click', () => {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+      closeSplit();
+      closeFind(false);
+      findQuery.value = '';
+      replaceValue.value = '';
+      input.value = '';
+      input.setSelectionRange(0, 0);
+      byId('print-document').replaceChildren();
+      tables = [];
+      tableStateValue = '';
+      history = [snapshot()];
+      historyIndex = 0;
+      saveDraftsEnabled = false;
+      saveDraftsToggle.checked = false;
+      let cleared = true;
+      try {
+        localStorage.removeItem(saveDraftsKey);
+        localStorage.removeItem(storageKey);
+        localStorage.removeItem(tableStorageKey);
+      } catch { storageReady = false; cleared = false; }
+      legacyDraftPresent = !cleared;
+      saveStatus.textContent = cleared ? 'Not saved in this browser' : 'Could not clear browser storage';
+      settings.open = false;
+      update();
+      input.focus({ preventScroll: true });
+      showMessage(cleared ? 'Editor and saved drafts cleared' : 'Editor cleared · browser storage unavailable');
+    });
     function preparePrint() {
       const output = byId('print-document');
       reconcileTables();
@@ -2056,7 +2169,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         appendText(value.slice(cursor, table.start));
         const source = value.slice(table.start, table.end);
         // Only use our escaped, rebuilt table markup, never source clipboard HTML.
-        const parsed = new DOMParser().parseFromString(tableHTML(table, source), 'text/html');
+        const parsed = new DOMParser().parseFromString(tableHTML(table, source, false), 'text/html');
         const renderedTable = parsed.querySelector('table');
         const grid = parseGrid(source);
         for (let index = 0; index < renderedTable.rows.length; index++) {

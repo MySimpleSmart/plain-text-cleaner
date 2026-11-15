@@ -280,6 +280,16 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
       equal(message.textContent, 'No text to paste'); equal(byId('paste').disabled, false);
     });
   });
+  await test('paste button rejects oversized clipboard blobs before reading them', async () => {
+    type('Keep this');
+    await withClipboard({ async read() { return [{ types: ['text/plain'], async getType() { return { size: MAX_CLIPBOARD_BYTES + 1, text() { throw Error('Oversized blob must not be read'); } }; } }]; } }, async () => {
+      byId('paste').click();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      equal(input.value, 'Keep this');
+      equal(message.textContent, 'Clipboard limit: 4 MB');
+      equal(byId('paste').disabled, false);
+    });
+  });
   await test('denied or unavailable clipboard read provides keyboard fallback', async () => {
     for (const clipboard of [undefined, { async readText() { throw new DOMException('Denied', 'NotAllowedError'); } }]) {
       await withClipboard(clipboard, async () => {
@@ -495,6 +505,13 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     clipboardData.setData('text/plain', plain); clipboardData.setData('text/html', html);
     input.dispatchEvent(new ClipboardEvent('paste', { clipboardData, cancelable: true }));
   };
+  await test('oversized HTML table spans and row counts are rejected before expansion', () => {
+    type('Keep');
+    pasteHTML('<table><tr><td colspan="101">x</td></tr></table>', 'Fallback');
+    equal(input.value, 'Keep'); equal(message.textContent, 'Table limit: 10,000 cells');
+    pasteHTML('<table>' + '<tr><td>x</td></tr>'.repeat(MAX_TABLE_ROWS + 1) + '</table>', 'Fallback');
+    equal(input.value, 'Keep'); equal(message.textContent, 'Table limit: 10,000 cells');
+  });
   const exportedDocument = () => new DOMParser().parseFromString(clipboardPayload().html, 'text/html');
   await test('file picker accepts TXT, CSV and TSV and TXT import cleans at the selection', async () => {
     equal(byId('open-file').getAttribute('aria-label'), 'Open TXT, CSV or TSV file');
@@ -542,6 +559,24 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     finish('new text');
     equal(await pending, false);
     equal(input.value, 'after');
+  });
+  await test('oversized paste, document, lines, files and tables are rejected before insertion', async () => {
+    type('Keep');
+    paste('x'.repeat(MAX_SOURCE_CHARS + 1));
+    equal(input.value, 'Keep'); equal(message.textContent, 'Paste limit: 1,000,000 characters');
+    paste('x'.repeat(MAX_DOCUMENT_CHARS + 1));
+    equal(input.value, 'Keep'); equal(message.textContent, 'Document limit: 500,000 characters');
+    paste('x\n'.repeat(MAX_DOCUMENT_LINES));
+    equal(input.value, 'Keep'); equal(message.textContent, 'Document limit: 10,000 lines');
+    const selection = snapshot();
+    const tooLarge = { name: 'large.txt', size: MAX_FILE_BYTES + 1, text() { throw Error('Should not read an oversized file'); } };
+    equal(await importFile(tooLarge, selection), false);
+    equal(message.textContent, 'File limit: 1 MB'); equal(input.value, 'Keep');
+    const wide = new File([Array(MAX_TABLE_COLUMNS + 1).fill('a').join(',')], 'wide.csv');
+    equal(await importFile(wide, selection), false);
+    equal(message.textContent, 'Table limit: 10,000 cells'); equal(input.value, 'Keep');
+    paste('<table><tr><td>safe</td></tr></table>'.repeat(30000));
+    equal(input.value, 'Keep');
   });
   await test('pasting joined words automatically asks to separate only the new text', () => {
     const joined = 'Accordingtothistablewhichtypeofstudentisleastlikelytoenrolinandgraduatefromuniversity?';
@@ -1096,12 +1131,33 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     equal(hint.hidden, true); equal(byId('copy').disabled, false);
     type(original);
   });
+  await test('draft saving requires opt in and privacy clear wipes content and history', async () => {
+    const draftOption = byId('save-drafts');
+    draftOption.checked = false; draftOption.dispatchEvent(new Event('change'));
+    equal(localStorage.getItem(storageKey), null);
+    equal(localStorage.getItem(tableStorageKey), null);
+    equal(localStorage.getItem(saveDraftsKey), null);
+    type('Private text');
+    await new Promise(resolve => setTimeout(resolve, 350));
+    equal(localStorage.getItem(storageKey), null);
+    equal(saveStatus.textContent, 'Not saved in this browser');
+    draftOption.checked = true; draftOption.dispatchEvent(new Event('change'));
+    equal(localStorage.getItem(saveDraftsKey), 'true');
+    equal(localStorage.getItem(storageKey), 'Private text');
+    type('Secret');
+    byId('clear-private').click();
+    equal(input.value, ''); equal(byId('undo').disabled, true);
+    equal(draftOption.checked, false);
+    equal(localStorage.getItem(storageKey), null);
+    equal(localStorage.getItem(saveDraftsKey), null);
+    equal(message.textContent, 'Editor and saved drafts cleared');
+  });
   await test('no horizontal overflow at current viewport', () => equal(document.documentElement.scrollWidth <= window.innerWidth, true));
   const output = document.createElement('pre');
   output.id = 'test-results'; output.textContent = JSON.stringify(results);
   document.body.append(output);
 };
-const seed = '<script>localStorage.setItem("plain-text-cleaner.document.v1", "Saved draft 🇲🇳");</script>';
+const seed = '<script>localStorage.setItem("plain-text-cleaner.save-drafts.v1", "true"); localStorage.setItem("plain-text-cleaner.document.v1", "Saved draft 🇲🇳");</script>';
 const base = `<base href="${pathToFileURL(path.join(__dirname, '..') + path.sep).href}">`;
 const html = source.replace('<head>', '<head>' + base).replace('  <script id="cleaner-app">', seed + '\n  <script id="cleaner-app">').replace(/\n<\/body>/, () => `<script>window.browserChecks = (${checks.toString()})()</script></body>`);
 const file = path.join(temporary, 'test.html');
