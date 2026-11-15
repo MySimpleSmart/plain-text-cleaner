@@ -1131,12 +1131,12 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     equal(hint.hidden, true); equal(byId('copy').disabled, false);
     type(original);
   });
-  await test('draft saving requires opt in and privacy clear wipes content and history', async () => {
+  await test('draft saving can be disabled and privacy clear wipes content and history', async () => {
     const draftOption = byId('save-drafts');
     draftOption.checked = false; draftOption.dispatchEvent(new Event('change'));
     equal(localStorage.getItem(storageKey), null);
     equal(localStorage.getItem(tableStorageKey), null);
-    equal(localStorage.getItem(saveDraftsKey), null);
+    equal(localStorage.getItem(saveDraftsKey), 'false');
     type('Private text');
     await new Promise(resolve => setTimeout(resolve, 350));
     equal(localStorage.getItem(storageKey), null);
@@ -1149,7 +1149,7 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     equal(input.value, ''); equal(byId('undo').disabled, true);
     equal(draftOption.checked, false);
     equal(localStorage.getItem(storageKey), null);
-    equal(localStorage.getItem(saveDraftsKey), null);
+    equal(localStorage.getItem(saveDraftsKey), 'false');
     equal(message.textContent, 'Editor and saved drafts cleared');
   });
   await test('no horizontal overflow at current viewport', () => equal(document.documentElement.scrollWidth <= window.innerWidth, true));

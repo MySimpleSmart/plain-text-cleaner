@@ -190,7 +190,7 @@
           </fieldset>
           <fieldset>
             <legend>Privacy</legend>
-            <label><input type="checkbox" id="save-drafts">Save drafts in this browser</label>
+            <label><input type="checkbox" id="save-drafts" checked>Save drafts in this browser</label>
             <button id="clear-private" class="setting-action" type="button">Clear editor and saved drafts</button>
           </fieldset>
         </div>
@@ -256,7 +256,7 @@
     </div>
     <div class="statusbar">
       <span id="status">0 words · 0 characters</span>
-      <span id="save-status" role="status" aria-live="polite">Not saved in this browser</span>
+      <span id="save-status" role="status" aria-live="polite">Saved in this browser only</span>
     </div>
   </main>
   <div id="message" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -921,12 +921,12 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     let tableStateValue = '';
     let saveTimer;
     let storageReady = true;
-    let saveDraftsEnabled = false;
+    let saveDraftsEnabled = true;
     let legacyDraftPresent = false;
     let composing = false;
 
     try {
-      saveDraftsEnabled = localStorage.getItem(saveDraftsKey) === 'true';
+      saveDraftsEnabled = localStorage.getItem(saveDraftsKey) !== 'false';
       saveDraftsToggle.checked = saveDraftsEnabled;
       const saved = localStorage.getItem(storageKey);
       if (saveDraftsEnabled) {
@@ -957,7 +957,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       } else {
         let cleared = true;
         try {
-          localStorage.removeItem(saveDraftsKey);
+          localStorage.setItem(saveDraftsKey, 'false');
           localStorage.removeItem(storageKey);
           localStorage.removeItem(tableStorageKey);
         } catch { storageReady = false; cleared = false; }
@@ -2131,7 +2131,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       saveDraftsToggle.checked = false;
       let cleared = true;
       try {
-        localStorage.removeItem(saveDraftsKey);
+        localStorage.setItem(saveDraftsKey, 'false');
         localStorage.removeItem(storageKey);
         localStorage.removeItem(tableStorageKey);
       } catch { storageReady = false; cleared = false; }

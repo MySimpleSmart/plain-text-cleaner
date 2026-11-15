@@ -75,7 +75,7 @@ async function main() {
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
         if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
         if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
-        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Draft saving is off by default')) throw Error('Privacy note is not visible');
+        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Drafts are saved in this browser by default')) throw Error('Privacy note is not visible');
         if (!credit || credit.href !== 'https://simplesmart.com.au/' || !credit.rel.includes('noopener') || !credit.rel.includes('noreferrer')) throw Error('Developer link is missing');
         if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
         if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
@@ -90,14 +90,17 @@ async function main() {
       expression: `(async () => {
         const editor = document.getElementById('text');
         const choice = document.getElementById('save-drafts');
-        if (!editor || !choice || choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Not saved in this browser') throw Error('Private default did not load');
+        if (!editor || !choice || !choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Saved in this browser only') throw Error('Draft saving default did not load');
         editor.value = 'Private draft'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await new Promise(resolve => setTimeout(resolve, 350));
-        if (localStorage.getItem('plain-text-cleaner.document.v1') !== null) throw Error('Draft saved without opt in');
-        choice.checked = true; choice.dispatchEvent(new Event('change'));
-        if (localStorage.getItem('plain-text-cleaner.document.v1') !== 'Private draft') throw Error('Opt in did not save');
+        if (localStorage.getItem('plain-text-cleaner.document.v1') !== 'Private draft') throw Error('Default draft was not saved');
         choice.checked = false; choice.dispatchEvent(new Event('change'));
-        if (localStorage.getItem('plain-text-cleaner.document.v1') !== null) throw Error('Opt out retained draft');
+        if (localStorage.getItem('plain-text-cleaner.document.v1') !== null || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Opt out retained draft or setting');
+        editor.value = 'Unsaved'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 350));
+        if (localStorage.getItem('plain-text-cleaner.document.v1') !== null) throw Error('Draft saved after opt out');
+        choice.checked = true; choice.dispatchEvent(new Event('change'));
+        if (localStorage.getItem('plain-text-cleaner.document.v1') !== 'Unsaved') throw Error('Re-enabling draft saving failed');
         await new Promise(resolve => setTimeout(resolve, 50));
         if (window.cspViolations.length) throw Error('Normal operation violated CSP: ' + JSON.stringify(window.cspViolations));
         const clipboardData = new DataTransfer();
@@ -108,7 +111,7 @@ async function main() {
         if (window.evil || !payload.html || /onerror|onclick|script|blocked/i.test(payload.html)) throw Error('Unsafe HTML escaped into output');
         preparePrint();
         document.getElementById('clear-private').click();
-        if (editor.value || localStorage.getItem('plain-text-cleaner.document.v1') !== null) throw Error('Privacy clear failed');
+        if (editor.value || localStorage.getItem('plain-text-cleaner.document.v1') !== null || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Privacy clear failed');
         await new Promise(resolve => setTimeout(resolve, 50));
         if (window.cspViolations.some(item => item.directive === 'style-src-attr')) throw Error('Printed tables used blocked inline styles: ' + JSON.stringify(window.cspViolations));
         const script = document.createElement('script'); script.textContent = 'window.injected=true'; document.body.append(script);
@@ -120,6 +123,18 @@ async function main() {
     }, sessionId);
     if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description || JSON.stringify(result.exceptionDetails));
     if (blockedRequests) throw Error('CSP allowed a network request');
+    const reloaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Page.reload', {}, sessionId);
+    await reloaded;
+    const persisted = await send('Runtime.evaluate', {
+      expression: `(() => {
+        const choice = document.getElementById('save-drafts');
+        const editor = document.getElementById('text');
+        if (choice.checked || editor.value || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Draft opt out did not persist after reload');
+        return true;
+      })()`, returnByValue: true
+    }, sessionId);
+    if (persisted.exceptionDetails) throw Error(persisted.exceptionDetails.exception?.description || JSON.stringify(persisted.exceptionDetails));
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {
     const exited = new Promise(resolve => browser.once('close', resolve)); browser.kill(); await exited;
