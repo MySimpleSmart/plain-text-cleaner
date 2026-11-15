@@ -9,13 +9,14 @@ const root = path.join(__dirname, '..');
 const config = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 const headers = Object.fromEntries(config.headers[0].headers.map(({ key, value }) => [key, value]));
 const html = fs.readFileSync(path.join(root, 'plain-text-cleaner.html'));
+const landing = fs.readFileSync(path.join(root, 'index.html'));
 const logo = fs.readFileSync(path.join(root, 'text-cleaner-logo.svg'));
 let blockedRequests = 0;
 const server = http.createServer((request, response) => {
   for (const [key, value] of Object.entries(headers)) response.setHeader(key, value);
   if (request.url === '/blocked') blockedRequests++;
   response.setHeader('Content-Type', request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
-  response.end(request.url === '/text-cleaner-logo.svg' ? logo : html);
+  response.end(request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : html);
 });
 
 async function main() {
@@ -45,11 +46,31 @@ async function main() {
   try {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
     await send('Page.enable', {}, sessionId);
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.cspViolations=[]; document.addEventListener('securitypolicyviolation', event => window.cspViolations.push({ directive: event.violatedDirective, sample: event.sample, target: event.target?.outerHTML?.slice(0, 200) }));` }, sessionId);
     const loaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     await send('Page.navigate', { url: siteUrl || `http://127.0.0.1:${server.address().port}/` }, sessionId);
     await loaded;
+    if (process.env.LANDING_SCREENSHOT) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
+      fs.writeFileSync(process.env.LANDING_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
+    const editorLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    const landingResult = await send('Runtime.evaluate', {
+      expression: `(() => {
+        const button = document.getElementById('open-editor');
+        if (!button || button.textContent.trim() !== 'OPEN EDITOR' || !button.href.endsWith('/plain-text-cleaner.html')) throw Error('Landing CTA is missing');
+        if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
+        if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
+        if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
+        if (window.cspViolations.length) throw Error('Landing violated CSP: ' + JSON.stringify(window.cspViolations));
+        button.click();
+        return true;
+      })()`, returnByValue: true
+    }, sessionId);
+    if (landingResult.exceptionDetails) throw Error(landingResult.exceptionDetails.exception?.description || JSON.stringify(landingResult.exceptionDetails));
+    await editorLoaded;
     const result = await send('Runtime.evaluate', {
       expression: `(async () => {
         const editor = document.getElementById('text');

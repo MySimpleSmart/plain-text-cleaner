@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Paste, clean, and copy text without bringing unwanted formatting along." />
+  <title>Plain Text Cleaner — clean text in your browser</title>
+  <link rel="icon" type="image/svg+xml" href="text-cleaner-logo.svg" />
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #37352f; background: #fff; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; }
+    .site-header { max-width: 1120px; margin: 0 auto; padding: 24px 32px; }
+    .brand { display: inline-flex; align-items: center; gap: 12px; color: #0b2027; font-size: 15px; font-weight: 650; text-decoration: none; }
+    .brand img { width: 24px; height: 24px; }
+    main { max-width: 760px; margin: 0 auto; padding: clamp(72px, 11vh, 128px) 32px 96px; }
+    .eyebrow { margin: 0 0 18px; color: #6c6b67; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    h1 { margin: 0; color: #0b2027; font-size: clamp(40px, 6vw, 64px); font-weight: 700; letter-spacing: -.055em; line-height: 1.08; }
+    .lead { max-width: 620px; margin: 24px 0 30px; color: #61605c; font-size: clamp(17px, 2.4vw, 20px); line-height: 1.6; }
+    .primary { display: inline-flex; align-items: center; gap: 20px; min-height: 48px; padding: 12px 18px; border-radius: 6px; background: #0b2027; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .035em; text-decoration: none; transition: background-color .2s ease, transform .2s ease; }
+    .primary:hover { background: #163641; transform: translateY(-1px); }
+    .primary:focus-visible, .brand:focus-visible { outline: 2px solid #0b2027; outline-offset: 4px; }
+    .primary svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .steps { margin-top: clamp(72px, 10vh, 112px); }
+    h2 { margin: 0 0 16px; color: #0b2027; font-size: 18px; letter-spacing: -.02em; }
+    ol { margin: 0; padding: 0; list-style: none; }
+    li { display: grid; grid-template-columns: 32px 1fr; gap: 18px; padding: 17px 0; border-top: 1px solid #e7e7e5; font-size: 15px; line-height: 1.55; }
+    li:last-child { border-bottom: 1px solid #e7e7e5; }
+    .number { color: #a3a29e; font-variant-numeric: tabular-nums; }
+    li strong { color: #37352f; font-weight: 650; }
+    li span:last-child { color: #61605c; }
+    .privacy { margin: 24px 0 0; color: #777671; font-size: 13px; line-height: 1.6; }
+    @media (max-width: 600px) {
+      .site-header { padding: 20px 24px; }
+      main { padding: 84px 24px 64px; }
+      .steps { margin-top: 80px; }
+      li { gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .primary { transition: none; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Plain Text Cleaner home">
+      <img src="text-cleaner-logo.svg" width="24" height="24" alt="" />
+      <span>Plain Text Cleaner</span>
+    </a>
+  </header>
+  <main>
+    <section aria-labelledby="intro-title">
+      <p class="eyebrow">PASTE · CLEAN · COPY</p>
+      <h1 id="intro-title">Text, without the mess.</h1>
+      <p class="lead">Paste text from documents, spreadsheets, or websites. Plain Text Cleaner removes unwanted formatting and keeps your text ready to use.</p>
+      <a id="open-editor" class="primary" href="plain-text-cleaner.html">OPEN EDITOR <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg></a>
+    </section>
+    <section class="steps" aria-labelledby="steps-title">
+      <h2 id="steps-title">How it works</h2>
+      <ol>
+        <li><span class="number">01</span><span><strong>Paste or open a file.</strong> Add text from anywhere, or open a TXT, CSV, or TSV file.</span></li>
+        <li><span class="number">02</span><span><strong>Clean automatically.</strong> Extra spaces, blank lines, and common markup are cleaned on paste. You can adjust the rules in Settings.</span></li>
+        <li><span class="number">03</span><span><strong>Copy or export.</strong> Copy clean text with tables, download a TXT file, or print to PDF.</span></li>
+      </ol>
+      <p class="privacy">Your text is processed in your browser. Draft saving is off by default and can be enabled in Settings.</p>
+    </section>
+  </main>
+</body>
+</html>

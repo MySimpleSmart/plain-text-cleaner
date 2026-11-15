@@ -1,19 +1,21 @@
-// Regenerate the static CSP hashes after editing plain-text-cleaner.html.
+// Regenerate the static CSP hashes after editing either HTML page.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'plain-text-cleaner.html'), 'utf8');
+const landing = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const style = html.match(/<style>([\s\S]*?)<\/style>/);
+const landingStyle = landing.match(/<style>([\s\S]*?)<\/style>/);
 const app = html.match(/<script id="cleaner-app">([\s\S]*?)<\/script>/);
-if (!style || !app) throw Error('Expected one inline app stylesheet and script');
+if (!style || !landingStyle || !app) throw Error('Expected inline stylesheets and the app script');
 const hash = text => `'sha256-${crypto.createHash('sha256').update(text).digest('base64')}'`;
 const policy = [
   "default-src 'none'",
   `script-src ${hash(app[1])}`,
   "script-src-attr 'none'",
-  `style-src ${hash(style[1])}`,
+  `style-src ${hash(style[1])} ${hash(landingStyle[1])}`,
   "style-src-attr 'none'",
   "img-src 'self'",
   "connect-src 'none'",
@@ -28,7 +30,7 @@ const policy = [
 ].join('; ');
 const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
-  rewrites: [{ source: '/', destination: '/plain-text-cleaner.html' }],
+  rewrites: [{ source: '/', destination: '/index.html' }],
   headers: [{
     source: '/(.*)',
     headers: [
