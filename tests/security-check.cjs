@@ -116,8 +116,9 @@ async function main() {
     const result = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/editor') throw Error('Editor did not keep its clean URL');
-        const editorLogo = document.querySelector('.brand-logo');
-        if (!editorLogo?.complete || !editorLogo.naturalWidth) throw Error('Editor logo failed to load');
+        const logoLink = document.querySelector('a.brand-logo');
+        const editorLogo = logoLink?.querySelector('img');
+        if (!logoLink || new URL(logoLink.href).pathname !== '/' || !editorLogo?.complete || !editorLogo.naturalWidth) throw Error('Editor home link or logo failed to load');
         const editor = document.getElementById('text');
         const choice = document.getElementById('save-drafts');
         if (!editor || !choice || !choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Saved in this browser only') throw Error('Draft saving default did not load');
@@ -165,6 +166,11 @@ async function main() {
       })()`, returnByValue: true
     }, sessionId);
     if (persisted.exceptionDetails) throw Error(persisted.exceptionDetails.exception?.description || JSON.stringify(persisted.exceptionDetails));
+    const homeLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.querySelector('a.brand-logo').click()", returnByValue: true }, sessionId);
+    await homeLoaded;
+    const home = await send('Runtime.evaluate', { expression: "location.pathname === '/' && Boolean(document.getElementById('open-editor'))", returnByValue: true }, sessionId);
+    if (!home.result.value) throw Error('Clicking the editor logo did not return home');
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {
     const exited = new Promise(resolve => browser.once('close', resolve)); browser.kill(); await exited;
