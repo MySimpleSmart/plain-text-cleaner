@@ -11,12 +11,16 @@ const headers = Object.fromEntries(config.headers[0].headers.map(({ key, value }
 const html = fs.readFileSync(path.join(root, 'plain-text-cleaner.html'));
 const landing = fs.readFileSync(path.join(root, 'index.html'));
 const logo = fs.readFileSync(path.join(root, 'text-cleaner-logo.svg'));
+const fonts = new Map([
+  ['/fonts/Ubuntu-Regular-latin.woff2', fs.readFileSync(path.join(root, 'fonts/Ubuntu-Regular-latin.woff2'))],
+  ['/fonts/Ubuntu-Bold-latin.woff2', fs.readFileSync(path.join(root, 'fonts/Ubuntu-Bold-latin.woff2'))]
+]);
 let blockedRequests = 0;
 const server = http.createServer((request, response) => {
   for (const [key, value] of Object.entries(headers)) response.setHeader(key, value);
   if (request.url === '/blocked') blockedRequests++;
-  response.setHeader('Content-Type', request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
-  response.end(request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : html);
+  response.setHeader('Content-Type', fonts.has(request.url) ? 'font/woff2' : request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
+  response.end(fonts.get(request.url) || (request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : html));
 });
 
 async function main() {
@@ -53,21 +57,32 @@ async function main() {
     await send('Page.navigate', { url: siteUrl || `http://127.0.0.1:${server.address().port}/` }, sessionId);
     await loaded;
     if (process.env.LANDING_SCREENSHOT) {
-      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
+      await send('Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true }, sessionId);
+      const metrics = await send('Page.getLayoutMetrics', {}, sessionId);
+      const { width, height } = metrics.cssContentSize;
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 } }, sessionId);
       fs.writeFileSync(process.env.LANDING_SCREENSHOT, Buffer.from(data, 'base64'));
     }
     const editorLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     const landingResult = await send('Runtime.evaluate', {
-      expression: `(() => {
+      expression: `(async () => {
+        await document.fonts.ready;
         const button = document.getElementById('open-editor');
+        const logo = document.querySelector('.brand img');
+        const privacy = document.querySelector('.privacy');
+        const credit = document.querySelector('.credit a');
         if (!button || button.textContent.trim() !== 'OPEN EDITOR' || !button.href.endsWith('/plain-text-cleaner.html')) throw Error('Landing CTA is missing');
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
+        if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
+        if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
+        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Draft saving is off by default')) throw Error('Privacy note is not visible');
+        if (!credit || credit.href !== 'https://simplesmart.com.au/' || !credit.rel.includes('noopener') || !credit.rel.includes('noreferrer')) throw Error('Developer link is missing');
         if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
         if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
         if (window.cspViolations.length) throw Error('Landing violated CSP: ' + JSON.stringify(window.cspViolations));
         button.click();
         return true;
-      })()`, returnByValue: true
+      })()`, awaitPromise: true, returnByValue: true
     }, sessionId);
     if (landingResult.exceptionDetails) throw Error(landingResult.exceptionDetails.exception?.description || JSON.stringify(landingResult.exceptionDetails));
     await editorLoaded;

@@ -19,7 +19,7 @@ const policy = [
   "style-src-attr 'none'",
   "img-src 'self'",
   "connect-src 'none'",
-  "font-src 'none'",
+  "font-src 'self'",
   "media-src 'none'",
   "worker-src 'none'",
   "frame-src 'none'",
