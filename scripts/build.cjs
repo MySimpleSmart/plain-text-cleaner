@@ -30,7 +30,11 @@ const policy = [
 ].join('; ');
 const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
-  rewrites: [{ source: '/', destination: '/index.html' }],
+  redirects: [{ source: '/plain-text-cleaner.html', destination: '/editor', permanent: true }],
+  rewrites: [
+    { source: '/', destination: '/index.html' },
+    { source: '/editor', destination: '/plain-text-cleaner.html' }
+  ],
   headers: [{
     source: '/(.*)',
     headers: [

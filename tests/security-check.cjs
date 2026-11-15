@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
@@ -19,13 +20,39 @@ let blockedRequests = 0;
 const server = http.createServer((request, response) => {
   for (const [key, value] of Object.entries(headers)) response.setHeader(key, value);
   if (request.url === '/blocked') blockedRequests++;
+  if (request.url === '/plain-text-cleaner.html') {
+    response.writeHead(308, { Location: '/editor' });
+    response.end();
+    return;
+  }
   response.setHeader('Content-Type', fonts.has(request.url) ? 'font/woff2' : request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
-  response.end(fonts.get(request.url) || (request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : html));
+  response.end(fonts.get(request.url) || (request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : request.url === '/editor' ? html : ''));
 });
+
+async function verifyRoutes(base) {
+  const request = (pathname, options = {}) => fetch(new URL(pathname, base), options);
+  const old = await request('/plain-text-cleaner.html', { redirect: 'manual' });
+  assert.equal(old.status, 308, 'Legacy URL must redirect permanently');
+  assert.equal(new URL(old.headers.get('location'), base).pathname, '/editor');
+  const editor = await request('/editor', { redirect: 'manual' });
+  assert.equal(editor.status, 200, '/editor must load without another redirect');
+  assert.equal(editor.headers.get('content-security-policy'), headers['Content-Security-Policy']);
+  assert.match(await editor.text(), /id="cleaner-app"/);
+  const followed = await request('/plain-text-cleaner.html');
+  assert.equal(followed.status, 200, 'Legacy redirect must resolve without a loop');
+  assert.equal(followed.url, new URL('/editor', base).href);
+  for (const pathname of ['/text-cleaner-logo.svg', ...fonts.keys()]) {
+    const asset = await request(pathname, { redirect: 'manual' });
+    assert.equal(asset.status, 200, `Asset failed: ${pathname}`);
+    assert.ok((await asset.arrayBuffer()).byteLength > 0, `Asset is empty: ${pathname}`);
+  }
+}
 
 async function main() {
   const siteUrl = process.env.SITE_URL;
   if (!siteUrl) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = siteUrl || `http://127.0.0.1:${server.address().port}/`;
+  await verifyRoutes(base);
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'text-cleaner-security-'));
   const chrome = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
   const browser = spawn(chrome, ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-pipe', `--user-data-dir=${temporary}`], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
@@ -54,7 +81,7 @@ async function main() {
     await send('Page.enable', {}, sessionId);
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.cspViolations=[]; document.addEventListener('securitypolicyviolation', event => window.cspViolations.push({ directive: event.violatedDirective, sample: event.sample, target: event.target?.outerHTML?.slice(0, 200) }));` }, sessionId);
     const loaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
-    await send('Page.navigate', { url: siteUrl || `http://127.0.0.1:${server.address().port}/` }, sessionId);
+    await send('Page.navigate', { url: base }, sessionId);
     await loaded;
     if (process.env.LANDING_SCREENSHOT) {
       await send('Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true }, sessionId);
@@ -71,7 +98,7 @@ async function main() {
         const logo = document.querySelector('.brand img');
         const privacy = document.querySelector('.privacy');
         const credit = document.querySelector('.credit a');
-        if (!button || button.textContent.trim() !== 'OPEN EDITOR' || !button.href.endsWith('/plain-text-cleaner.html')) throw Error('Landing CTA is missing');
+        if (!button || button.textContent.trim() !== 'OPEN EDITOR' || new URL(button.href).pathname !== '/editor') throw Error('Landing CTA is missing');
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
         if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
         if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
@@ -88,6 +115,9 @@ async function main() {
     await editorLoaded;
     const result = await send('Runtime.evaluate', {
       expression: `(async () => {
+        if (location.pathname !== '/editor') throw Error('Editor did not keep its clean URL');
+        const editorLogo = document.querySelector('.brand-logo');
+        if (!editorLogo?.complete || !editorLogo.naturalWidth) throw Error('Editor logo failed to load');
         const editor = document.getElementById('text');
         const choice = document.getElementById('save-drafts');
         if (!editor || !choice || !choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Saved in this browser only') throw Error('Draft saving default did not load');
