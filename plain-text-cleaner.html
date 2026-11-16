@@ -45,6 +45,8 @@
     .find-meta label { font-size: 12px; }
     #find-toggle[aria-expanded="true"] { background: #f0f3f8; }
     .setting-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font-size: 13px; }
+    .clear-button { justify-content: center; padding: 10px 12px; border-color: #a22f2f; background: #a22f2f; color: #fff; font-weight: 600; line-height: 1.4; text-align: center; }
+    .clear-button:hover:not(:disabled) { border-color: #862626; background: #862626; }
     .toolbar-position-setting { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; font-size: 13px; }
     .toolbar-position-setting > span { min-width: 64px; }
     .toolbar-position-setting input { width: 15px; height: 15px; margin: 0; }
@@ -193,7 +195,7 @@
           <fieldset>
             <legend>Privacy</legend>
             <label><input type="checkbox" id="save-drafts" checked>Save drafts in this browser</label>
-            <button id="clear-private" class="setting-action" type="button">Clear editor and saved drafts</button>
+            <button id="clear-private" class="setting-action clear-button" type="button">Clear editor and saved drafts</button>
           </fieldset>
         </div>
       </details>
