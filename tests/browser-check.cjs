@@ -619,6 +619,15 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
       equal(splitPanel.hidden, true);
     } finally { toggle.checked = true; }
   });
+  await test('ordinary pasted paragraphs do not trigger joined-word review', () => {
+    const paragraph = 'The recent motion overhaul significantly improved Kanban dragging, but most of NoteApp still feels static.\nStop expanding the Motion System. Instead, audit the actual interactions of every existing component and block.\nPreserve performance and existing functionality. Do not introduce unnecessary dependencies.';
+    type('');
+    paste(paragraph);
+    equal(input.value, paragraph);
+    equal(splitPanel.hidden, true);
+    paste('The system has helloworld in it.');
+    equal(splitPanel.hidden, true);
+  });
   await test('Paste button also shows the joined-word review', async () => {
     type('');
     await withClipboard({ async readText() { return 'helloworld'; } }, async () => {

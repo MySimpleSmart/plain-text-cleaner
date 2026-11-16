@@ -182,7 +182,7 @@
           </fieldset>
           <fieldset>
             <legend>Text tools</legend>
-            <label><input type="checkbox" id="suggest-split" checked>Suggest word splitting on paste</label>
+            <label><input type="checkbox" id="suggest-split" checked>Suggest splitting unspaced English text on paste</label>
             <div class="setting-action">
               <span>Split joined English words</span>
               <button id="split-joined" class="icon-button" aria-label="Split joined English words" title="Split joined English words">
@@ -1488,7 +1488,10 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     function suggestPastedWords(start, end) {
-      if (!byId('suggest-split').checked || !/[A-Za-z]{8,}/.test(input.value.slice(start, end))) return false;
+      // A normal paragraph can contain unfamiliar names or terms that resemble joined words.
+      // Only prompt automatically for a single unspaced English token; the manual tool handles mixed text.
+      const pasted = input.value.slice(start, end).trim();
+      if (!byId('suggest-split').checked || !/^[A-Za-z]{8,}[.!?]?$/.test(pasted)) return false;
       const selection = { ...snapshot(), start, end };
       const proposed = proposedWordSplits(selection);
       if (!proposed.edits.length) return false;
