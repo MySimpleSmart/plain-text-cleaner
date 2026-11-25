@@ -19,6 +19,7 @@
     .case-actions { position: absolute; z-index: 3; display: flex; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
     .case-actions[hidden] { display: none; }
     .case-actions button { text-transform: none; font-weight: 600; }
+    #case-title { font-size: 11px; }
     button, .settings summary { min-height: 38px; border: 1px solid #cdd2d9; border-radius: 5px; padding: 8px 16px; font: inherit; font-size: 13px; text-transform: uppercase; cursor: pointer; background: #fff; color: #323944; }
     button:hover:not(:disabled), .settings summary:hover { background: #f0f3f8; }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; transition: background-color .2s ease, border-color .2s ease; }
@@ -240,6 +241,7 @@
         <button id="case-upper" class="icon-button" aria-label="UPPERCASE selected text" title="UPPERCASE" disabled><span aria-hidden="true">AA</span></button>
         <button id="case-lower" class="icon-button" aria-label="Lowercase selected text" title="lowercase" disabled><span aria-hidden="true">aa</span></button>
         <button id="case-default" class="icon-button" aria-label="Default — sentence case" title="Default — sentence case" disabled><span aria-hidden="true">Aa</span></button>
+        <button id="case-title" class="icon-button" aria-label="Capitalize each word in selected text" title="Title Case — capitalize each word" disabled><span aria-hidden="true">A·A</span></button>
       </div>
       <section id="split-panel" class="split-panel" aria-label="Review separated words" hidden>
         <div class="split-panel-header">
@@ -1119,7 +1121,9 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       input.parentElement.classList.toggle('case-open', !actions.hidden);
       byId('case-upper').disabled = !available;
       byId('case-lower').disabled = !available;
-      byId('case-default').disabled = !available || input.value.slice(start, end) === sentenceCase(input.value.slice(start, end));
+      const selected = available ? input.value.slice(start, end) : '';
+      byId('case-default').disabled = !available || selected === sentenceCase(selected);
+      byId('case-title').disabled = !available || selected === titleCase(selected);
       if (!actions.hidden) {
         placeToolBelowText(actions, end);
         if (wasHidden) revealTool(actions);
@@ -1131,6 +1135,13 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         (_, boundary, opening, letter) => boundary + opening + letter.toUpperCase());
     }
 
+    function titleCase(text) {
+      return Array.from(words.segment(text), ({ segment, isWordLike }) => {
+        if (!isWordLike) return segment;
+        return segment.toLowerCase().replace(/\p{L}/u, letter => letter.toUpperCase());
+      }).join('');
+    }
+
     function changeSelectedCase(mode) {
       updateCaseControls();
       const start = input.selectionStart;
@@ -1140,7 +1151,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const baseTables = caseSession ? caseSession.baseTables : tables.map(table => ({ ...table }));
       const baseDocument = caseSession ? caseSession.baseDocument : input.value;
       const baseEnd = caseSession ? caseSession.baseEnd : end;
-      const transform = text => mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : sentenceCase(text);
+      const transform = text => mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : mode === 'title' ? titleCase(text) : sentenceCase(text);
       const replacement = transform(original);
       if (replacement === input.value.slice(start, end)) return;
       if (input.value.length - (end - start) + replacement.length > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
@@ -1152,10 +1163,10 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       caseSession = { original, start, end: start + replacement.length, value: input.value, baseTables, baseDocument, baseEnd };
       record();
       input.focus({ preventScroll: true });
-      showMessage(mode === 'default' ? 'Selection changed to sentence case' : mode === 'upper' ? 'Selection changed to UPPERCASE' : 'Selection changed to lowercase');
+      showMessage(mode === 'default' ? 'Selection changed to sentence case' : mode === 'upper' ? 'Selection changed to UPPERCASE' : mode === 'title' ? 'Each word capitalized' : 'Selection changed to lowercase');
     }
 
-    for (const mode of ['upper', 'lower', 'default']) byId(`case-${mode}`).addEventListener('click', () => changeSelectedCase(mode));
+    for (const mode of ['upper', 'lower', 'default', 'title']) byId(`case-${mode}`).addEventListener('click', () => changeSelectedCase(mode));
     input.addEventListener('select', updateCaseControls);
     document.addEventListener('selectionchange', updateCaseControls);
     input.addEventListener('select', positionEmptyHint);

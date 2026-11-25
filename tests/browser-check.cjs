@@ -392,6 +392,17 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     byId('undo').click(); equal(input.value, 'HELLO WORLD. HOW ARE YOU?\n"THIS IS ANOTHER LINE."\nСАЙН БАЙНА УУ?');
     byId('redo').click(); equal(input.value, 'Hello world. How are you?\n"This is another line."\nСайн байна уу?');
   });
+  await test('title case capitalizes every selected word and preserves spacing and punctuation', () => {
+    const source = 'hELLO   wORLD.\nСАЙН байна УУ\tMIXED-case 123';
+    const expected = 'Hello   World.\nСайн Байна Уу\tMixed-Case 123';
+    type(`Before ${source} after`); selectText(7, 7 + source.length);
+    equal(byId('case-title').disabled, false);
+    byId('case-title').click();
+    equal(input.value, `Before ${expected} after`);
+    equal(byId('case-title').disabled, true);
+    byId('undo').click(); equal(input.value, `Before ${source} after`);
+    byId('redo').click(); equal(input.value, `Before ${expected} after`);
+  });
   await test('case controls appear below selected text and keep the selection on click', () => {
     type('Selected words\nMore text'); selectText(0, 8);
     const actions = byId('case-actions');
@@ -833,6 +844,7 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     closeFind(); selectText(0, input.value.length); byId('case-upper').click();
     equal(exportedDocument().querySelector('th').textContent, 'GROUP');
     byId('case-default').click(); equal(exportedDocument().querySelector('th').textContent, 'Group');
+    byId('case-title').click(); equal(exportedDocument().querySelector('table').rows[1].cells[0].textContent, 'Highest Group');
     byId('clear').click(); equal(tables.length, 0);
     byId('undo').click(); equal(exportedDocument().querySelectorAll('tr').length, 5);
     byId('redo').click(); equal(input.value, ''); equal(tables.length, 0);
