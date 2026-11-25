@@ -239,9 +239,7 @@
       <div id="case-actions" class="case-actions" role="group" aria-label="Change selected text case" hidden>
         <button id="case-upper" class="icon-button" aria-label="UPPERCASE selected text" title="UPPERCASE" disabled><span aria-hidden="true">AA</span></button>
         <button id="case-lower" class="icon-button" aria-label="Lowercase selected text" title="lowercase" disabled><span aria-hidden="true">aa</span></button>
-        <button id="case-default" class="icon-button" aria-label="Default — restore original case" title="Default — restore original case" disabled>
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4v6h6M3 10a9 9 0 1 1 1 8"/><path d="m10 15 2-6 2 6m-3.3-2h2.6"/></svg>
-        </button>
+        <button id="case-default" class="icon-button" aria-label="Default — sentence case" title="Default — sentence case" disabled><span aria-hidden="true">Aa</span></button>
       </div>
       <section id="split-panel" class="split-panel" aria-label="Review separated words" hidden>
         <div class="split-panel-header">
@@ -1121,26 +1119,32 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       input.parentElement.classList.toggle('case-open', !actions.hidden);
       byId('case-upper').disabled = !available;
       byId('case-lower').disabled = !available;
-      byId('case-default').disabled = !available || !caseSession || input.value.slice(start, end) === caseSession.original;
+      byId('case-default').disabled = !available || input.value.slice(start, end) === sentenceCase(input.value.slice(start, end));
       if (!actions.hidden) {
         placeToolBelowText(actions, end);
         if (wasHidden) revealTool(actions);
       }
     }
 
+    function sentenceCase(text) {
+      return text.toLowerCase().replace(/(^\s*|[.!?]\s*|\n\s*)(["'“‘«(\[]*)(\p{L})/gu,
+        (_, boundary, opening, letter) => boundary + opening + letter.toUpperCase());
+    }
+
     function changeSelectedCase(mode) {
       updateCaseControls();
       const start = input.selectionStart;
       const end = input.selectionEnd;
-      if (start === end || composing || (mode === 'default' && !caseSession)) return;
+      if (start === end || composing) return;
       const original = caseSession ? caseSession.original : input.value.slice(start, end);
       const baseTables = caseSession ? caseSession.baseTables : tables.map(table => ({ ...table }));
       const baseDocument = caseSession ? caseSession.baseDocument : input.value;
       const baseEnd = caseSession ? caseSession.baseEnd : end;
-      const replacement = mode === 'upper' ? original.toUpperCase() : mode === 'lower' ? original.toLowerCase() : original;
+      const transform = text => mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : sentenceCase(text);
+      const replacement = transform(original);
+      if (replacement === input.value.slice(start, end)) return;
       if (input.value.length - (end - start) + replacement.length > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
       rememberSelection();
-      const transform = text => mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : text;
       const mapPosition = position => position <= start ? position : position >= baseEnd ? position + replacement.length - (baseEnd - start) : start + transform(baseDocument.slice(start, position)).length;
       input.setRangeText(replacement, start, end, 'select');
       tables = baseTables.map(table => ({ ...table, start: mapPosition(table.start), end: mapPosition(table.end) }));
@@ -1148,7 +1152,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       caseSession = { original, start, end: start + replacement.length, value: input.value, baseTables, baseDocument, baseEnd };
       record();
       input.focus({ preventScroll: true });
-      showMessage(mode === 'default' ? 'Original case restored' : mode === 'upper' ? 'Selection changed to UPPERCASE' : 'Selection changed to lowercase');
+      showMessage(mode === 'default' ? 'Selection changed to sentence case' : mode === 'upper' ? 'Selection changed to UPPERCASE' : 'Selection changed to lowercase');
     }
 
     for (const mode of ['upper', 'lower', 'default']) byId(`case-${mode}`).addEventListener('click', () => changeSelectedCase(mode));

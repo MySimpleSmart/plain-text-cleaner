@@ -369,18 +369,28 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     input.setSelectionRange(start, end);
     input.dispatchEvent(new Event('select'));
   };
-  await test('selected text supports uppercase, lowercase and exact original restoration', () => {
+  await test('selected text supports uppercase, lowercase and sentence case', () => {
     const original = 'Сайн MiXeD 😀';
     type(`Before ${original} after`); selectText(7, 7 + original.length);
-    equal(byId('case-actions').hidden, false); equal(byId('case-default').disabled, true);
+    equal(byId('case-actions').hidden, false); equal(byId('case-default').disabled, false);
     byId('case-upper').click(); equal(input.value, `Before ${original.toUpperCase()} after`);
     equal(input.selectionStart, 7); equal(input.selectionEnd, 7 + original.length);
     save(); equal(localStorage.getItem(storageKey), input.value);
     byId('case-lower').click(); equal(input.value, `Before ${original.toLowerCase()} after`);
-    byId('case-default').click(); equal(input.value, `Before ${original} after`);
+    byId('case-default').click(); equal(input.value, 'Before Сайн mixed 😀 after');
     equal(byId('case-default').disabled, true);
     byId('undo').click(); equal(input.value, `Before ${original.toLowerCase()} after`);
-    byId('redo').click(); equal(input.value, `Before ${original} after`);
+    byId('redo').click(); equal(input.value, 'Before Сайн mixed 😀 after');
+  });
+  await test('pasted uppercase text converts directly to readable sentence case', () => {
+    type('');
+    paste('HELLO WORLD. HOW ARE YOU?\n"THIS IS ANOTHER LINE."\nСАЙН БАЙНА УУ?');
+    selectText(0, input.value.length);
+    equal(byId('case-default').disabled, false);
+    byId('case-default').click();
+    equal(input.value, 'Hello world. How are you?\n"This is another line."\nСайн байна уу?');
+    byId('undo').click(); equal(input.value, 'HELLO WORLD. HOW ARE YOU?\n"THIS IS ANOTHER LINE."\nСАЙН БАЙНА УУ?');
+    byId('redo').click(); equal(input.value, 'Hello world. How are you?\n"This is another line."\nСайн байна уу?');
   });
   await test('case controls appear below selected text and keep the selection on click', () => {
     type('Selected words\nMore text'); selectText(0, 8);
@@ -399,7 +409,7 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     byId('case-lower').click(); equal(input.value, 'x straße y'); equal(input.selectionEnd, 8);
     byId('case-default').click(); equal(input.value, 'x Straße y'); equal(input.selectionEnd, 8);
   });
-  await test('changing or clearing selection invalidates the original-case restore target', () => {
+  await test('changing or clearing selection keeps case changes scoped', () => {
     type('One Two'); selectText(0, 3); byId('case-upper').click(); equal(input.value, 'ONE Two');
     selectText(4, 7); equal(byId('case-default').disabled, true);
     byId('case-default').click(); equal(input.value, 'ONE Two');
@@ -822,7 +832,7 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     equal(exportedDocument().querySelector('th').textContent, 'group');
     closeFind(); selectText(0, input.value.length); byId('case-upper').click();
     equal(exportedDocument().querySelector('th').textContent, 'GROUP');
-    byId('case-default').click(); equal(exportedDocument().querySelector('th').textContent, 'group');
+    byId('case-default').click(); equal(exportedDocument().querySelector('th').textContent, 'Group');
     byId('clear').click(); equal(tables.length, 0);
     byId('undo').click(); equal(exportedDocument().querySelectorAll('tr').length, 5);
     byId('redo').click(); equal(input.value, ''); equal(tables.length, 0);
