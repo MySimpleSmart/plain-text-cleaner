@@ -90,7 +90,16 @@ const checks = async function () {
   });
   await test('invisible cleanup preserves joiners and emoji', () => equal(cleanText('a\u00a0b\u200bc\ufeff\u00ad\u2060 👨‍👩‍👧‍👦 می\u200cروم', { invisible: true }), 'a bc 👨‍👩‍👧‍👦 می\u200cروم'));
   await test('Markdown headings emphasis links images lists', () => {
-    equal(stripMarkdown('# Title\n**bold** and *italic* and ~~gone~~\n- [x] Done\n[Link](https://example.com/a_(b))\n![Alt](image.png)'), 'Title\nbold and italic and gone\nDone\nLink\nAlt');
+    equal(stripMarkdown('# Title\n**bold** and *italic* and ~~gone~~\n- [x] Done\n[Link](https://example.com/a_(b))\n![Alt](image.png)'), 'Title\nbold and italic and gone\n☑ Done\nLink\nAlt');
+  });
+  await test('plain numbered and bullet lists keep their markers when cleaned and copied', () => {
+    const source = '3.   Third item\n7)  Seventh item\n  -  Nested point\n* Another point\n- [ ] Open task';
+    const expected = '3. Third item\n7) Seventh item\n  • Nested point\n• Another point\n☐ Open task';
+    type(''); paste(source);
+    equal(input.value, expected);
+    equal(clipboardPayload().plain, expected);
+    byId('undo').click(); equal(input.value, '');
+    byId('redo').click(); equal(input.value, expected);
   });
   await test('Markdown preserves code and escaped symbols', () => {
     equal(stripMarkdown('```js\nconst a = "**keep**";\n```\n`a_b` and \\*literal\\*\nsnake_case and 2 * 3'), 'const a = "**keep**";\na_b and *literal*\nsnake_case and 2 * 3');
@@ -119,7 +128,7 @@ PC1={}&a_1(x_1-98.836)+a_2(x_2-106.622)\
     byId('redo').click(); equal(input.value, pcText);
     const settings = { latex: true, markdown: true, spaces: true, 'blank-lines': true, invisible: true };
     equal(cleanText(pcText, settings), pcText);
-    equal(cleanText('+ First item\n+ Second item', settings), 'First item\nSecond item');
+    equal(cleanText('+ First item\n+ Second item', settings), '• First item\n• Second item');
   });
   await test('LaTeX text cleanup handles normal delimiters, row breaks and numeric scripts', () => {
     const settings = { latex: true, markdown: true, spaces: true };
@@ -526,6 +535,29 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     clipboardData.setData('text/plain', plain); clipboardData.setData('text/html', html);
     input.dispatchEvent(new ClipboardEvent('paste', { clipboardData, cancelable: true }));
   };
+  await test('HTML numbered and nested lists keep their visible numbering without source styles', () => {
+    type('');
+    pasteHTML('<ol start="3" style="color:red"><li><p>Third item</p></li><li value="7">Seventh item<ul><li>Nested bullet</li></ul></li><li>Next item</li></ol>', 'Third item\nSeventh item\nNested bullet\nNext item');
+    equal(input.value, '3. Third item\n7. Seventh item\n  • Nested bullet\n8. Next item');
+    equal(tables.length, 0);
+    equal(clipboardPayload().plain, input.value);
+  });
+  await test('HTML list extraction ignores unsafe elements', () => {
+    type('');
+    pasteHTML('<ol onclick="window.bad=true"><li>Safe<img src="/blocked?list" onerror="window.bad=true"><script>window.bad=true<\/script></li></ol>');
+    equal(input.value, '1. Safe');
+    equal(window.bad, undefined);
+  });
+  await test('lists beside a table retain numbering and table structure on copy', () => {
+    type('');
+    pasteHTML('<ol><li>First step</li></ol><table><tr><th>Value</th></tr><tr><td>42</td></tr></table><ul><li>Final note</li></ul>');
+    equal(input.value, '1. First step\n\nValue\n42\n\n• Final note');
+    const payload = clipboardPayload();
+    equal(payload.plain, input.value);
+    equal(payload.html.includes('<table'), true);
+    equal(payload.html.includes('1. First step'), true);
+    equal(payload.html.includes('• Final note'), true);
+  });
   await test('oversized HTML table spans and row counts are rejected before expansion', () => {
     type('Keep');
     pasteHTML('<table><tr><td colspan="101">x</td></tr></table>', 'Fallback');

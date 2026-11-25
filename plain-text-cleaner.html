@@ -1588,7 +1588,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         .replace(/^ {0,3}(?:>[ \t]?)+/gm, '')
         .replace(/^(\S[^\n]*)\n {0,3}(?:=+|-+)[ \t]*$/gm, '$1')
         .replace(/^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/gm, '')
-        .replace(/^([ \t]*)(?:[-+*]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/gm, '$1');
+        .replace(/^([ \t]*)[-+*][ \t]+\[([ xX])\][ \t]+/gm, (_, indent, checked) => `${indent}${checked.trim() ? '☑' : '☐'} `)
+        .replace(/^([ \t]*)[-+*][ \t]+/gm, '$1• ');
       for (const marker of ['\\*\\*\\*', '___', '\\*\\*', '__', '~~', '\\*', '_']) {
         text = text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${marker}(?=\\S)([^\\n]*?\\S)${marker}(?![\\p{L}\\p{N}])`, 'gu'), '$1');
       }
@@ -1729,8 +1730,9 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     function extractTables(html, selected) {
-      if (!html || !/<table[\s>]/i.test(html)) return null;
+      if (!html || !/<(?:table|ol|ul)[\s>]/i.test(html)) return null;
       if ((html.match(/<tr[\s>]/gi) || []).length > MAX_TABLE_ROWS || (html.match(/<(?:td|th)[\s>]/gi) || []).length > MAX_TABLE_CELLS) return { tooLarge: true };
+      if ((html.match(/<li[\s>]/gi) || []).length >= MAX_DOCUMENT_LINES) return { tooLarge: true, list: true };
       // A template is inert: source scripts, attributes and external resources are never attached.
       const template = document.createElement('template');
       template.innerHTML = html;
@@ -1738,6 +1740,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       let tooLarge = false;
       let totalCells = 0;
       let plain = '';
+      let hasList = false;
+      const listStack = [];
       const flush = () => {
         const cleaned = cleanText(plain.replace(/\r\n?/g, '\n'), selected).replace(/^\n+|\n+$/g, '');
         if (cleaned.trim()) segments.push({ text: cleaned });
@@ -1748,6 +1752,32 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         if (node.nodeType === Node.TEXT_NODE) { plain += node.nodeValue; return; }
         if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
         if (ignoredClipboardTags.has(node.tagName)) return;
+        if (node.tagName === 'OL' || node.tagName === 'UL') {
+          hasList = true;
+          if (plain && !plain.endsWith('\n')) plain += '\n';
+          const reversed = node.hasAttribute('reversed');
+          const requestedStart = node.getAttribute('start');
+          const itemCount = Array.from(node.children).filter(child => child.tagName === 'LI').length;
+          const start = requestedStart !== null && /^-?\d+$/.test(requestedStart) && Number.isSafeInteger(Number(requestedStart))
+            ? Number(requestedStart) : reversed ? itemCount : 1;
+          listStack.push({ ordered: node.tagName === 'OL', next: start, step: reversed ? -1 : 1 });
+          for (const child of node.childNodes) walk(child, depth + 1);
+          listStack.pop();
+          if (plain && !plain.endsWith('\n')) plain += '\n';
+          return;
+        }
+        if (node.tagName === 'LI' && listStack.length) {
+          if (plain && !plain.endsWith('\n')) plain += '\n';
+          const list = listStack.at(-1);
+          const requestedValue = node.getAttribute('value');
+          if (list.ordered && requestedValue !== null && /^-?\d+$/.test(requestedValue) && Number.isSafeInteger(Number(requestedValue))) list.next = Number(requestedValue);
+          const marker = list.ordered ? `${list.next}.` : '•';
+          if (list.ordered) list.next += list.step;
+          plain += `${'  '.repeat(Math.min(listStack.length - 1, 8))}${marker} `;
+          for (const child of node.childNodes) walk(child, depth + 1);
+          if (!plain.endsWith('\n')) plain += '\n';
+          return;
+        }
         if (node.tagName === 'TABLE') {
           const table = readTable(node, selected);
           if (table === false) { tooLarge = true; return; }
@@ -1760,13 +1790,14 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         }
         if (node.tagName === 'BR') { plain += '\n'; return; }
         const block = /^(P|DIV|LI|H[1-6]|PRE|BLOCKQUOTE)$/.test(node.tagName);
-        if (block && plain && !plain.endsWith('\n')) plain += '\n';
+        const markerOnly = /^ {0,16}(?:\d+\.|•) $/.test(plain.slice(plain.lastIndexOf('\n') + 1));
+        if (block && plain && !plain.endsWith('\n') && !markerOnly) plain += '\n';
         for (const child of node.childNodes) walk(child, depth + 1);
         if (block && !plain.endsWith('\n')) plain += '\n';
       };
       walk(template.content); flush();
       if (tooLarge) return { tooLarge: true };
-      if (!segments.some(segment => segment.table)) return null;
+      if (!segments.some(segment => segment.table) && !hasList) return null;
       let text = '';
       const extracted = [];
       for (const segment of segments) {
@@ -1974,7 +2005,12 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
           .replace(/[\u00ad\u200b\u2060\ufeff]/g, '');
       }
       // Normalize horizontal Unicode spaces too, without consuming line breaks or language joiners.
-      if (selected.spaces) text = text.split('\n').map(line => line.replace(/[\t \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+/g, ' ').replace(/^ +| +$/g, '')).join('\n');
+      if (selected.spaces) text = text.split('\n').map(line => {
+        // Keep indentation that expresses list nesting while cleaning excess spacing.
+        const leading = line.match(/^([ \t]*)(?=(?:\d+[.)]|•|☑|☐)[ \t]+)/u)?.[1] || '';
+        const indent = ' '.repeat(Math.min(leading.replace(/\t/g, '  ').length, 16));
+        return indent + line.replace(/[\t \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+/g, ' ').trim();
+      }).join('\n');
       if (selected['blank-lines']) text = text.replace(/^[\t \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+$/gm, '').replace(/\n{2,}/g, '\n');
       return latex.restore(text);
     }
@@ -2014,7 +2050,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (plain.length > MAX_SOURCE_CHARS || html.length > MAX_SOURCE_CHARS) { showMessage('Paste limit: 1,000,000 characters'); return false; }
       const selected = Object.fromEntries(options.map(option => [option.id, option.checked]));
       const rich = extractTables(html, selected) || extractPlainTable(plain, selected);
-      if (rich?.tooLarge) { showMessage('Table limit: 10,000 cells'); return false; }
+      if (rich?.tooLarge) { showMessage(rich.list ? 'List limit: 10,000 items' : 'Table limit: 10,000 cells'); return false; }
       return insertCleanedText(rich ? rich.text : cleanText(plain, selected), rich?.tables || [], suggestSplit);
     }
 
