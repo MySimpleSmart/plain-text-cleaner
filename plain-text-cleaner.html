@@ -1540,43 +1540,72 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       let previousIsProse = false;
       const listLine = /^\s*(?:[-+*•☑☐]|\d+[.)])\s+/u;
       const formulaLine = /(?:\\[A-Za-z]+|\\[\[\](){}]|[=∑≈≤≥]|\^\{|_\{|\\\\)/u;
-      for (const original of lines) {
-        const trimmed = original.trim();
+      const hasBullets = lines.some(line => /^\s*[•☑☐*-](?:\s|$)/u.test(line));
+      let pendingBullet = '';
+      const addLine = (line, prose) => {
+        if (!line) {
+          if (output.at(-1) !== '') output.push('');
+          previousIsProse = false;
+          return;
+        }
+        const previous = output.at(-1) || '';
+        const continuesSentence = prose && previousIsProse && previous &&
+          !/[.!?。！？:：]\s*$/u.test(previous) &&
+          (/^[\p{Ll}\p{N}]/u.test(line) || /[,;—–-]\s*$/u.test(previous) ||
+            (previous.length >= 70 && /^[\p{L}]/u.test(line)));
+        if (continuesSentence) output[output.length - 1] = previous + (previous.endsWith('-') ? '' : ' ') + line;
+        else output.push(line);
+        previousIsProse = prose;
+      };
+      const tidyLine = (line, hasNextLine) => {
+        line = line.replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/gu, ' ')
+          .replace(/[\u200b-\u200d\u2060\ufeff]/gu, '')
+          .replace(/ {2,}/gu, ' ').trim();
+        if (hasNextLine) line = line.replace(/(?<!\\)\\\s*$/u, '');
+        return line.replace(/\s+([,;:.!?])/gu, '$1')
+          .replace(/([,;:])(?=\p{L})/gu, '$1 ')
+          .replace(/([.!?])(?=\p{Lu}\p{Ll}{2,})/gu, '$1 ')
+          .replace(/(\p{Ll}{3,})(\p{Lu}\p{Ll}{2,})/gu, '$1 $2');
+      };
+      for (let index = 0; index < lines.length; index++) {
+        const original = lines[index];
         const fence = /^\s*(`{3,}|~{3,})/u.test(original);
         const mathStart = /^\s*(?:\\\[|\\\(|\$\$)/u.test(original);
         const mathEnd = /(?:\\\]|\\\)|\$\$)\s*$/u.test(original);
         const blockStart = /\\begin\{/u.test(original);
         const blockEnd = /\\end\{/u.test(original);
         const protectedLine = inFence || inMath || inBlock || fence || mathStart || blockStart ||
-          listLine.test(original) || original.includes('\t') || formulaLine.test(original) ||
-          /^\s{4,}\S/u.test(original) || /^\s*(?:#{1,6}\s|>\s|\|)/u.test(original);
+          original.includes('\t') || formulaLine.test(original) ||
+          (/^\s{4,}\S/u.test(original) && !listLine.test(original)) || /^\s*(?:#{1,6}\s|>\s|\|)/u.test(original);
         if (fence) inFence = !inFence;
         if (mathStart && !mathEnd) inMath = true;
         if (mathEnd) inMath = false;
         if (blockStart) inBlock = true;
         if (blockEnd) inBlock = false;
         if (protectedLine) {
+          if (pendingBullet) { output.push(pendingBullet.trim()); pendingBullet = ''; }
           output.push(original);
           previousIsProse = false;
           continue;
         }
-        if (!trimmed) {
-          if (output.at(-1) !== '') output.push('');
-          previousIsProse = false;
+        const listIndent = original.match(/^([ \t]*)(?=(?:[-+*•☑☐]|\d+[.)])\s+)/u)?.[1] || '';
+        let line = tidyLine(original, index < lines.length - 1);
+        if (listIndent) line = ' '.repeat(Math.min(listIndent.replace(/\t/gu, '  ').length, 16)) + line;
+        const isolatedBullet = line.match(/^(\s*)([•☑☐*-])\s*$/u);
+        if (isolatedBullet) { pendingBullet = isolatedBullet[1] + isolatedBullet[2] + ' '; continue; }
+        if (!line && pendingBullet) continue;
+        if (pendingBullet) { if (!listLine.test(line)) line = pendingBullet + line; pendingBullet = ''; }
+        if (!line) {
+          addLine('', false);
           continue;
         }
-        const line = original.replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ')
-          .replace(/[\u200b-\u200d\u2060\ufeff]/gu, '')
-          .replace(/ {2,}/gu, ' ').trim();
-        const previous = output.at(-1) || '';
-        const continuesSentence = previousIsProse && previous &&
-          !/[.!?。！？:：]\s*$/u.test(previous) &&
-          (/^[\p{Ll}\p{N}]/u.test(line) || /[,;—–-]\s*$/u.test(previous) ||
-            (previous.length >= 70 && /^[\p{L}]/u.test(line)));
-        if (continuesSentence) output[output.length - 1] = previous + (previous.endsWith('-') ? '' : ' ') + line;
-        else output.push(line);
-        previousIsProse = true;
+        if (hasBullets && /\bincluding:\s*(?=\p{Lu})/iu.test(line)) {
+          line = line.replace(/(\bincluding:)\s*(?=\p{Lu})/giu, '$1\n• ')
+            .replace(/\)\s*(?=A\s+\p{Ll})/gu, ')\n• ');
+        } else line = line.replace(/\)\s*(?=\p{Lu}\p{Ll}{2,})/gu, ') ');
+        for (const piece of line.split('\n')) addLine(piece, !listLine.test(piece));
       }
+      if (pendingBullet) output.push(pendingBullet.trim());
       return output.join('\n');
     }
 

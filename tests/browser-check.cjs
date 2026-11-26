@@ -794,6 +794,12 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     equal(organizeProse('First.\n\n\n\nSecond.'), 'First.\n\nSecond.');
     equal(organizeProse('long-\nterm'), 'long-term');
     equal(organizeProse('```js\n\n\ncode  here\n```'), '```js\n\n\ncode  here\n```');
+    const formula = String.raw`\[
+PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)\\
+\]`;
+    equal(organizeProse(formula), formula);
+    equal(organizeProse('iPhone and eBay remain names.'), 'iPhone and eBay remain names.');
+    equal(organizeProse('  3.   Nested  item\n    •   Child'), '  3. Nested item\n    • Child');
     type('');
     pasteHTML('<table><tr><td>Old</td><td>table</td></tr></table>');
     const tableText = input.value;
@@ -801,6 +807,34 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     paste('Plain prose after a table.');
     equal(tables.length, 0);
     equal(input.value, 'Plain prose after a table.');
+  });
+  await test('Organize repairs the MODUN paste while keeping its project list and Undo', () => {
+    const source = String.raw`MODUN Pty Ltd specialises in steel reinforcement fixing for medium- to high-rise residential, commercial, and infrastructure developments across New South Wales, including both metropolitanSydney and regional areas. Established in 2016, MODUN brings extensive expertise in steel reinforcement installation for conventional and post-tensioned slabs, suspended slabs, cores, footings, retaining walls, and complex structural elements. The company has successfully delivered steel reinforcement works for numerous large-scale mixed-use residential, commercial, and public infrastructure projects,partnering with reputable construction companies including TQM Design & Construct (Mosman Construction NSW Pty Ltd) , Richard Crookes Constructions, Pillar Projects Pty Ltd, Attcall Group Pty Ltd, and J Holdings Group Pty Limited.\
+MODUN is currently engaged in multiple active projects across New South Wales, including:Residential and commercial developments in Zetland and Burwood (Mosman Construction NSW Pty Ltd / TQM projects)A residential and commercial project in Strathfield (Pillar Projects Pty Ltd)\
+• \
+\
+The Grand Gosford development in Gosford (Mosman Construction NSW Pty Ltd), currently in the early construction stage\
+• Leppington High School (Attcall Group Pty Ltd), involving inground and footing reinforcement works\
+• Water pipe protection steel works in Bathurst (J Holdings Group Pty Limited), commenced in March 2026\
+In addition, MODUN has contributed to major public infrastructure projects, including works associated with education facilities such as Concord High School and the Melonba Education Campus in Marsden Park. Through these projects, MODUN demonstrates strong capability in delivering high-quality reinforcement works, maintaining strict compliance with Australian construction standards and workplace health and safety requirements, and supporting both metropolitan and regional construction activity.`;
+    type(''); paste(source);
+    const pasted = input.value;
+    byId('organize').click();
+    equal(organizePanel.hidden, false);
+    const preview = byId('organize-after').textContent;
+    equal(preview.includes('metropolitan Sydney'), true);
+    equal(preview.includes('projects, partnering'), true);
+    equal(preview.includes('Pty Ltd), Richard Crookes'), true);
+    equal(preview.includes('including:\n• Residential and commercial developments'), true);
+    equal(preview.includes('TQM projects)\n• A residential and commercial project'), true);
+    equal(preview.includes('• The Grand Gosford development'), true);
+    equal(preview.includes('• Leppington High School'), true);
+    equal(preview.includes('• Water pipe protection steel works'), true);
+    equal(preview.includes('\\\n'), false);
+    equal(input.value, pasted);
+    byId('organize-apply').click();
+    equal(input.value, preview);
+    byId('undo').click(); equal(input.value, pasted);
   });
   await test('CV example uses one text editor and keeps its complete table on clipboard roundtrip', () => {
     const rows = [['Variable', 'CV'], ['x1', '0.0742'], ['x2', '0.0950'], ['x3', '0.0458 (Min)'], ['x4', '0.3521'], ['x5', '0.2387'], ['x6', '0.2026'], ['x7', '0.3541 (Max)']];
