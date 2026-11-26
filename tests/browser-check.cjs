@@ -737,6 +737,71 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
     byId('undo').click();
     equal(exportedDocument().querySelector('table').rows[1].cells[0].textContent, 'joinedwords');
   });
+  await test('Organize previews prose changes, Cancel and Escape preserve the document', () => {
+    const original = 'A  long paragraph that continues after a hard break and has enough words to make a clear sentence\nwith   extra space.';
+    type(original);
+    byId('organize').click();
+    equal(organizePanel.hidden, false);
+    const panel = organizePanel.getBoundingClientRect();
+    equal(panel.left >= 8 && panel.right <= window.innerWidth - 8, true);
+    equal(byId('organize-before').textContent, original);
+    equal(byId('organize-after').textContent, 'A long paragraph that continues after a hard break and has enough words to make a clear sentence with extra space.');
+    equal(input.value, original);
+    byId('organize-cancel').click(); equal(input.value, original); equal(organizePanel.hidden, true);
+    byId('organize').click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    equal(input.value, original); equal(organizePanel.hidden, true);
+  });
+  await test('Organize applies as one Undo step and leaves unselected text unchanged', () => {
+    const original = 'Keep this.\nA   sentence with an accidental line\nbreak and spaces.\nKeep that.';
+    type(original);
+    const start = original.indexOf('A   sentence'), end = original.indexOf('\nKeep that.');
+    input.setSelectionRange(start, end);
+    byId('organize').click();
+    equal(byId('organize-scope').textContent, 'Organize selection?');
+    byId('organize-apply').click();
+    equal(input.value, 'Keep this.\nA sentence with an accidental line break and spaces.\nKeep that.');
+    equal(organizePanel.hidden, true);
+    byId('undo').click(); equal(input.value, original);
+    byId('redo').click(); equal(input.value, 'Keep this.\nA sentence with an accidental line break and spaces.\nKeep that.');
+  });
+  await test('Organize preserves numbered lists, formulas, code and table cells', () => {
+    type('');
+    pasteHTML('<p>Intro  with spaces</p><table><tr><th>Item</th><th>Value</th></tr><tr><td>x1</td><td>0.0742</td></tr></table><p>After  table.</p>');
+    applyEdit(0, 0, 'Lead  text\n');
+    applyEdit(input.value.length, input.value.length, '\n1. First item\n2) Second item\nPC2 = ∑ᵢ₌₁⁷ bᵢ(xᵢ − x̄ᵢ)\n```js\nconst x  = 1;\n```');
+    record();
+    const tableBefore = input.value.slice(tables[0].start, tables[0].end);
+    const original = input.value;
+    byId('organize').click();
+    equal(byId('organize-after').textContent.includes(tableBefore), true);
+    byId('organize-apply').click();
+    equal(input.value.includes(tableBefore), true);
+    equal(input.value.includes('1. First item\n2) Second item\nPC2 = ∑ᵢ₌₁⁷ bᵢ(xᵢ − x̄ᵢ)\n```js\nconst x  = 1;\n```'), true);
+    equal(exportedDocument().querySelector('table').rows[1].cells[1].textContent, '0.0742');
+    byId('undo').click(); equal(input.value, original);
+    equal(exportedDocument().querySelector('table').rows[1].cells[1].textContent, '0.0742');
+  });
+  await test('Organize leaves already tidy prose unchanged and enforces review limit', () => {
+    type('One sentence.\nAnother sentence.');
+    byId('organize').click();
+    equal(organizePanel.hidden, true); equal(message.textContent, 'Text is already organized');
+    type('x'.repeat(MAX_ORGANIZE_CHARS + 1));
+    byId('organize').click();
+    equal(organizePanel.hidden, true); equal(message.textContent, 'Select up to 100,000 characters to organize');
+  });
+  await test('Organize collapses surplus blank lines but protects code blocks and exact table replacement', () => {
+    equal(organizeProse('First.\n\n\n\nSecond.'), 'First.\n\nSecond.');
+    equal(organizeProse('long-\nterm'), 'long-term');
+    equal(organizeProse('```js\n\n\ncode  here\n```'), '```js\n\n\ncode  here\n```');
+    type('');
+    pasteHTML('<table><tr><td>Old</td><td>table</td></tr></table>');
+    const tableText = input.value;
+    input.setSelectionRange(0, tableText.length);
+    paste('Plain prose after a table.');
+    equal(tables.length, 0);
+    equal(input.value, 'Plain prose after a table.');
+  });
   await test('CV example uses one text editor and keeps its complete table on clipboard roundtrip', () => {
     const rows = [['Variable', 'CV'], ['x1', '0.0742'], ['x2', '0.0950'], ['x3', '0.0458 (Min)'], ['x4', '0.3521'], ['x5', '0.2387'], ['x6', '0.2026'], ['x7', '0.3541 (Max)']];
     type('');

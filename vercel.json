@@ -23,7 +23,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'none'; script-src 'sha256-wgvLYVAepZ44bBXEKNE3djilGvdAMb4JGNf9RKVVkC8='; script-src-attr 'none'; style-src 'sha256-6j+hHWWntTNqoZYnXFFSmuCwyQJp+eKZWZruMLkfxWQ=' 'sha256-9s0xA9Bhxf/ssSTrYGJt8aD5fBaKWrxx2+8wt+iAQPU='; style-src-attr 'none'; img-src 'self'; connect-src 'none'; font-src 'self'; media-src 'none'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+          "value": "default-src 'none'; script-src 'sha256-hx2MM4ygoK5KS2Jtmmcbs51HK2QluVvhc1IAY/2BP64='; script-src-attr 'none'; style-src 'sha256-0Fp6ViIb1E4i3ZZEWo2DMN7+wTNJb+G8tzVDS/LyLSA=' 'sha256-9s0xA9Bhxf/ssSTrYGJt8aD5fBaKWrxx2+8wt+iAQPU='; style-src-attr 'none'; img-src 'self'; connect-src 'none'; font-src 'self'; media-src 'none'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
         },
         {
           "key": "X-Content-Type-Options",

@@ -51,14 +51,20 @@
     .toolbar-position-setting { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; font-size: 13px; }
     .toolbar-position-setting > span { min-width: 64px; }
     .toolbar-position-setting input { width: 15px; height: 15px; margin: 0; }
-    .split-panel { position: absolute; z-index: 3; width: min(440px, 100%); max-height: 55vh; padding: 12px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
-    .toolbar-top .split-panel, .toolbar-top .case-actions { scroll-margin-top: 100px; }
-    .split-panel[hidden] { display: none; }
+    .split-panel, .organize-panel { position: absolute; z-index: 3; width: min(440px, 100%); max-height: 55vh; padding: 12px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
+    .organize-panel { width: min(520px, 100%); overflow: auto; }
+    .toolbar-top .split-panel, .toolbar-top .organize-panel, .toolbar-top .case-actions { scroll-margin-top: 100px; }
+    .split-panel[hidden], .organize-panel[hidden] { display: none; }
     .split-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
     .split-panel-actions { display: flex; gap: 4px; }
     .split-preview { max-height: calc(55vh - 72px); min-height: 70px; overflow: auto; padding: 10px; border-radius: 4px; background: #fafaf9; font: 13px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
     .split-preview:focus { outline: none; }
     .split-preview:focus-visible { box-shadow: inset 0 0 0 1px #aaa9a5; }
+    .organize-comparison { display: grid; gap: 8px; }
+    .organize-comparison label { display: block; margin-bottom: 4px; color: #616975; font-size: 11px; font-weight: 600; text-transform: uppercase; cursor: default; }
+    .organize-preview { max-height: 17vh; min-height: 52px; margin: 0; overflow: auto; padding: 8px 10px; border-radius: 4px; background: #fafaf9; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .organize-preview:focus { outline: none; }
+    .organize-preview:focus-visible { box-shadow: inset 0 0 0 1px #aaa9a5; }
     fieldset { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; border: 0; padding: 0; margin: 0; }
     legend { padding: 0; margin-bottom: 14px; font-size: 12px; font-weight: 600; }
     .settings-panel fieldset + fieldset { margin-top: 20px; }
@@ -72,6 +78,7 @@
     .toolbar-top main { padding-bottom: 48px; }
     .paper { --gutter: 0px; --page-inset: 0px; position: relative; max-width: 760px; margin: 0 auto; padding: var(--page-inset); padding-left: calc(var(--page-inset) + var(--gutter)); overflow: hidden; }
     .paper.split-open { overflow: visible; margin-bottom: 180px; }
+    .paper.organize-open { overflow: visible; margin-bottom: calc(55vh + 120px); }
     .paper.case-open { overflow: visible; }
     .search-highlights, .line-numbers { position: absolute; top: var(--page-inset); left: calc(var(--page-inset) + var(--gutter)); right: var(--page-inset); z-index: 1; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; pointer-events: none; }
     .page-sheets { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
@@ -101,8 +108,8 @@
     @media (max-width: 600px) {
       .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); padding: 10px; border-radius: 8px; }
       body.toolbar-top .toolbar { top: 56px; margin-top: 56px; }
-      .split-panel, .case-actions { scroll-margin-bottom: 150px; }
-      .toolbar-top .split-panel, .toolbar-top .case-actions { scroll-margin-top: 180px; }
+      .split-panel, .organize-panel, .case-actions { scroll-margin-bottom: 150px; }
+      .toolbar-top .split-panel, .toolbar-top .organize-panel, .case-actions { scroll-margin-top: 180px; }
       .actions { gap: 4px; }
       button.primary { padding: 8px 10px; font-size: 12px; }
       main { padding: 72px 24px 200px; }
@@ -140,6 +147,9 @@
       </button>
       <button id="open-file" class="icon-button" aria-label="Open TXT, CSV or TSV file" title="Open TXT, CSV or TSV file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2L1 9a2 2 0 0 1 2-2z"/></svg>
+      </button>
+      <button id="organize" class="icon-button" disabled aria-label="Organize text" title="Organize text">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5h12M3 9h9M3 15h12M3 19h9m5-11 1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>
       </button>
       <input id="file-input" class="sr-only" type="file" accept=".txt,.csv,.tsv,text/plain,text/csv,text/tab-separated-values" tabindex="-1" aria-hidden="true">
       <button id="download" class="icon-button" disabled aria-label="Download TXT" title="Download TXT">
@@ -256,6 +266,19 @@
           </div>
         </div>
         <div id="split-preview" class="split-preview" tabindex="0" aria-label="Proposed text"></div>
+      </section>
+      <section id="organize-panel" class="organize-panel" aria-label="Review organized text" hidden>
+        <div class="split-panel-header">
+          <span id="organize-scope">Review document</span>
+          <div class="split-panel-actions">
+            <button id="organize-apply" class="icon-button" aria-label="Apply organized text" title="Apply"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 12 5 5L20 6"/></svg></button>
+            <button id="organize-cancel" class="icon-button" aria-label="Cancel organization" title="Cancel"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5 5 19"/></svg></button>
+          </div>
+        </div>
+        <div class="organize-comparison">
+          <div><label for="organize-before">Before</label><pre id="organize-before" class="organize-preview" tabindex="0"></pre></div>
+          <div><label for="organize-after">After</label><pre id="organize-after" class="organize-preview" tabindex="0"></pre></div>
+        </div>
       </section>
     </div>
     <div class="statusbar">
@@ -848,6 +871,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const options = ['spaces', 'blank-lines', 'invisible', 'markdown', 'latex'].map(byId);
     const settings = byId('settings');
     const splitPanel = byId('split-panel');
+    const organizePanel = byId('organize-panel');
     const findPanel = byId('find-panel');
     const findQuery = byId('find-query');
     const replaceValue = byId('replace-value');
@@ -890,7 +914,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     let activeMatch = -1;
     let caseSession = null;
     settings.addEventListener('toggle', () => {
-      if (settings.open) closeFind(false);
+      if (settings.open) { closeFind(false); closeOrganize(); }
       updateCaseControls();
     });
     document.addEventListener('click', event => {
@@ -900,6 +924,11 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (event.key === 'Escape' && !splitPanel.hidden) {
         event.preventDefault();
         closeSplit(true);
+        return;
+      }
+      if (event.key === 'Escape' && !organizePanel.hidden) {
+        event.preventDefault();
+        closeOrganize(true);
         return;
       }
       if (event.key === 'Escape' && settings.open) {
@@ -921,6 +950,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const MAX_TABLE_COLUMNS = 100;
     const MAX_TABLE_CELLS = 10000;
     const MAX_DOCUMENT_LINES = 10000;
+    const MAX_ORGANIZE_CHARS = 100000;
     let tables = [];
     let tableStateValue = '';
     let saveTimer;
@@ -988,6 +1018,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       if (!findPanel.hidden) syncHighlightStyle();
       if (!byId('case-actions').hidden) placeToolBelowText(byId('case-actions'), input.selectionEnd);
       if (!splitPanel.hidden) positionSplitPanel();
+      if (!organizePanel.hidden) positionOrganizePanel();
       positionEmptyHint();
     }
 
@@ -1094,6 +1125,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const visibleText = hasVisibleText(input.value);
       emptyHint.hidden = visibleText || !input.value;
       byId('clear').disabled = !hasText;
+      byId('organize').disabled = !visibleText;
       for (const id of ['download', 'print']) byId(id).disabled = !visibleText;
       if (!visibleText) { copyRequest++; resetCopyButton(); }
       else if (copyButton.classList.contains('copied') && input.value !== copiedValue) resetCopyButton();
@@ -1117,7 +1149,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const available = start !== end && !composing && !caseFocusOutside;
       const actions = byId('case-actions');
       const wasHidden = actions.hidden;
-      actions.hidden = !available || !findPanel.hidden || !splitPanel.hidden || settings.open;
+      actions.hidden = !available || !findPanel.hidden || !splitPanel.hidden || !organizePanel.hidden || settings.open;
       input.parentElement.classList.toggle('case-open', !actions.hidden);
       byId('case-upper').disabled = !available;
       byId('case-lower').disabled = !available;
@@ -1182,7 +1214,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     });
     document.addEventListener('pointerdown', event => {
       if (!splitPanel.hidden && !splitPanel.contains(event.target) && event.target !== byId('split-joined')) closeSplit();
-      const inTool = splitPanel.contains(event.target) || findPanel.contains(event.target) || byId('case-actions').contains(event.target);
+      if (!organizePanel.hidden && !organizePanel.contains(event.target) && event.target !== byId('organize')) closeOrganize();
+      const inTool = splitPanel.contains(event.target) || organizePanel.contains(event.target) || findPanel.contains(event.target) || byId('case-actions').contains(event.target);
       const inEditor = input.parentElement.contains(event.target) && !inTool;
       caseFocusOutside = !(inEditor || byId('case-actions').contains(event.target));
       if (!inEditor && !inTool && !document.querySelector('.toolbar').contains(event.target)) dismissEditorSelection();
@@ -1251,6 +1284,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     function openFind() {
       closeSplit();
+      closeOrganize();
       const selection = input.value.slice(input.selectionStart, input.selectionEnd);
       if (selection && !selection.includes('\n')) findQuery.value = selection;
       settings.open = false;
@@ -1333,6 +1367,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     function changed() {
+      closeOrganize();
       clearMessage();
       update();
       clearTimeout(saveTimer);
@@ -1446,6 +1481,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     let splitState;
+    let organizeState = null;
     function placeToolBelowText(panel, position) {
       if (panel.hidden) return;
       const paper = input.parentElement, style = getComputedStyle(input);
@@ -1477,6 +1513,141 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       placeToolBelowText(splitPanel, splitState.end);
     }
 
+    function positionOrganizePanel() {
+      if (organizePanel.hidden || !organizeState) return;
+      placeToolBelowText(organizePanel, organizeState.end);
+    }
+
+    function closeOrganize(returnFocus = false) {
+      if (organizePanel.hidden) return;
+      organizePanel.hidden = true;
+      input.parentElement.classList.remove('organize-open');
+      organizePanel.style.removeProperty('top');
+      organizePanel.style.removeProperty('left');
+      byId('organize-before').textContent = '';
+      byId('organize-after').textContent = '';
+      organizeState = null;
+      if (returnFocus) input.focus({ preventScroll: true });
+      updateCaseControls();
+    }
+
+    function organizeProse(source) {
+      const lines = source.replace(/\r\n?/g, '\n').split('\n');
+      const output = [];
+      let inFence = false;
+      let inMath = false;
+      let inBlock = false;
+      let previousIsProse = false;
+      const listLine = /^\s*(?:[-+*•☑☐]|\d+[.)])\s+/u;
+      const formulaLine = /(?:\\[A-Za-z]+|\\[\[\](){}]|[=∑≈≤≥]|\^\{|_\{|\\\\)/u;
+      for (const original of lines) {
+        const trimmed = original.trim();
+        const fence = /^\s*(`{3,}|~{3,})/u.test(original);
+        const mathStart = /^\s*(?:\\\[|\\\(|\$\$)/u.test(original);
+        const mathEnd = /(?:\\\]|\\\)|\$\$)\s*$/u.test(original);
+        const blockStart = /\\begin\{/u.test(original);
+        const blockEnd = /\\end\{/u.test(original);
+        const protectedLine = inFence || inMath || inBlock || fence || mathStart || blockStart ||
+          listLine.test(original) || original.includes('\t') || formulaLine.test(original) ||
+          /^\s{4,}\S/u.test(original) || /^\s*(?:#{1,6}\s|>\s|\|)/u.test(original);
+        if (fence) inFence = !inFence;
+        if (mathStart && !mathEnd) inMath = true;
+        if (mathEnd) inMath = false;
+        if (blockStart) inBlock = true;
+        if (blockEnd) inBlock = false;
+        if (protectedLine) {
+          output.push(original);
+          previousIsProse = false;
+          continue;
+        }
+        if (!trimmed) {
+          if (output.at(-1) !== '') output.push('');
+          previousIsProse = false;
+          continue;
+        }
+        const line = original.replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ')
+          .replace(/[\u200b-\u200d\u2060\ufeff]/gu, '')
+          .replace(/ {2,}/gu, ' ').trim();
+        const previous = output.at(-1) || '';
+        const continuesSentence = previousIsProse && previous &&
+          !/[.!?。！？:：]\s*$/u.test(previous) &&
+          (/^[\p{Ll}\p{N}]/u.test(line) || /[,;—–-]\s*$/u.test(previous) ||
+            (previous.length >= 70 && /^[\p{L}]/u.test(line)));
+        if (continuesSentence) output[output.length - 1] = previous + (previous.endsWith('-') ? '' : ' ') + line;
+        else output.push(line);
+        previousIsProse = true;
+      }
+      return output.join('\n');
+    }
+
+    function proposedOrganization(selection) {
+      const start = selection.start === selection.end ? 0 : selection.start;
+      const end = selection.start === selection.end ? selection.value.length : selection.end;
+      const edits = [];
+      let cursor = start;
+      const addProse = until => {
+        if (until <= cursor) return;
+        const original = selection.value.slice(cursor, until);
+        const replacement = organizeProse(original);
+        if (replacement !== original) edits.push({ start: cursor, end: until, replacement });
+        cursor = until;
+      };
+      for (const table of selection.tables) {
+        if (table.end <= start || table.start >= end) continue;
+        addProse(Math.max(cursor, table.start));
+        cursor = Math.min(end, table.end);
+      }
+      addProse(end);
+      let preview = '', at = start;
+      for (const edit of edits) {
+        preview += selection.value.slice(at, edit.start) + edit.replacement;
+        at = edit.end;
+      }
+      preview += selection.value.slice(at, end);
+      return { start, end, edits, preview };
+    }
+
+    byId('organize').addEventListener('click', () => {
+      if (composing || !hasVisibleText(input.value)) { showMessage('Add text first'); return; }
+      reconcileTables();
+      const selection = snapshot();
+      const start = selection.start === selection.end ? 0 : selection.start;
+      const end = selection.start === selection.end ? selection.value.length : selection.end;
+      if (end - start > MAX_ORGANIZE_CHARS) { showMessage('Select up to 100,000 characters to organize'); return; }
+      const proposed = proposedOrganization(selection);
+      if (!proposed.edits.length) { showMessage('Text is already organized'); return; }
+      closeSplit();
+      closeFind(false);
+      settings.open = false;
+      organizeState = { selection, ...proposed };
+      byId('organize-scope').textContent = selection.start === selection.end ? 'Organize document?' : 'Organize selection?';
+      byId('organize-before').textContent = selection.value.slice(start, end);
+      byId('organize-after').textContent = proposed.preview;
+      organizePanel.hidden = false;
+      input.parentElement.classList.add('organize-open');
+      positionOrganizePanel();
+      byId('organize-after').focus({ preventScroll: true });
+      revealTool(organizePanel);
+      updateCaseControls();
+    });
+    byId('organize-cancel').addEventListener('click', () => closeOrganize(true));
+    byId('organize-apply').addEventListener('click', () => {
+      if (!organizeState || composing) return;
+      const { selection, edits, start, end } = organizeState;
+      if (input.value !== selection.value) { closeOrganize(); showMessage('Text changed · review again'); return; }
+      const delta = edits.reduce((total, edit) => total + edit.replacement.length - (edit.end - edit.start), 0);
+      if (input.value.length + delta > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
+      const mapPosition = position => position + edits.filter(edit => edit.end <= position).reduce((total, edit) => total + edit.replacement.length - (edit.end - edit.start), 0);
+      rememberSelection();
+      for (const edit of [...edits].reverse()) if (!applyEdit(edit.start, edit.end, edit.replacement)) return;
+      const caret = selection.start === selection.end ? mapPosition(selection.start) : mapPosition(start);
+      input.setSelectionRange(caret, selection.start === selection.end ? caret : mapPosition(end));
+      closeOrganize();
+      record();
+      input.focus({ preventScroll: true });
+      showMessage('Text organized · Undo to restore');
+    });
+
     function closeSplit(returnFocus = false) {
       if (splitPanel.hidden) return;
       const automatic = splitState?.automatic;
@@ -1491,6 +1662,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     }
 
     function showSplitReview(selection, proposed, automatic = false) {
+      closeOrganize();
       settings.open = false;
       closeFind(false);
       splitState = { selection, ...proposed, automatic };
@@ -1653,7 +1825,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         if (includeBoundary && start === end && !replacement.includes('\n') && start >= table.start && start <= table.end) return [{ ...table, end: table.end + delta }];
         if (table.end <= start) return [table];
         if (table.start >= end) return [{ ...table, start: table.start + delta, end: table.end + delta }];
-        if (start >= table.start && end <= table.end && table.end + delta > table.start) return [{ ...table, end: table.end + delta }];
+        if (start >= table.start && end <= table.end && (start > table.start || end < table.end) && table.end + delta > table.start) return [{ ...table, end: table.end + delta }];
         return [];
       });
     }
@@ -2026,6 +2198,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     input.addEventListener('input', event => {
       if (composing || event.isComposing) { resizePage(); return; }
       closeSplit();
+      closeOrganize();
       record();
     });
     function insertCleanedText(cleaned, insertedTables = [], suggestSplit = false) {
