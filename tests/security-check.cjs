@@ -122,6 +122,15 @@ async function main() {
         const editor = document.getElementById('text');
         const choice = document.getElementById('save-drafts');
         if (!editor || !choice || !choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Saved in this browser only') throw Error('Draft saving default did not load');
+        const beforeOrganize = 'A  long line that continues after a hard break and keeps going for several more words\\nwith  extra spaces.';
+        editor.value = beforeOrganize; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        document.getElementById('organize').click();
+        const review = document.getElementById('organize-panel');
+        if (review.hidden || document.getElementById('organize-before').textContent !== beforeOrganize || !document.getElementById('organize-after').textContent.includes('words with extra spaces.')) throw Error('Live organize preview failed');
+        document.getElementById('organize-apply').click();
+        if (review.hidden !== true || !editor.value.includes('words with extra spaces.')) throw Error('Live organize apply failed');
+        document.getElementById('undo').click();
+        if (editor.value !== beforeOrganize) throw Error('Live organize undo failed');
         editor.value = 'Private draft'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await new Promise(resolve => setTimeout(resolve, 350));
         if (localStorage.getItem('plain-text-cleaner.document.v1') !== 'Private draft') throw Error('Default draft was not saved');
