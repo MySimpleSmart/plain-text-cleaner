@@ -159,6 +159,9 @@
       <button id="open-file" class="icon-button" aria-label="Open TXT, CSV or TSV file" title="Open TXT, CSV or TSV file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2L1 9a2 2 0 0 1 2-2z"/></svg>
       </button>
+      <button id="convert-document" class="icon-button" disabled aria-label="Convert selected text to Document" title="Select text to convert to Document">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h9l4 4v12H3zM12 4v4h4M7 12h5M7 16h5M16 15h5m-2-2 2 2-2 2"/></svg>
+      </button>
       <input id="file-input" class="sr-only" type="file" accept=".txt,.csv,.tsv,text/plain,text/csv,text/tab-separated-values" tabindex="-1" aria-hidden="true">
       <button id="download" class="icon-button" disabled aria-label="Download TXT" title="Download TXT">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
@@ -1179,7 +1182,9 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const selected = available ? input.value.slice(start, end) : '';
       byId('case-default').disabled = !available || selected === sentenceCase(selected);
       byId('case-title').disabled = !available || selected === titleCase(selected);
-      byId('convert-selection').disabled = !available || !hasVisibleText(selected) || selected.length > 100000;
+      const canConvert = start !== end && !composing && hasVisibleText(input.value.slice(start, end)) && end - start <= 100000;
+      byId('convert-selection').disabled = !canConvert;
+      byId('convert-document').disabled = !canConvert;
       if (!actions.hidden) {
         placeToolBelowText(actions, end);
         if (wasHidden) revealTool(actions);
@@ -2398,7 +2403,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const convertDialog = byId('convert-dialog');
     byId('convert-cancel').addEventListener('click', () => convertDialog.close());
     byId('convert-confirm').addEventListener('click', () => openDocument(true));
-    byId('convert-selection').addEventListener('click', () => {
+    function showConvertDialog() {
       const selection = input.value.slice(input.selectionStart, input.selectionEnd);
       if (!hasVisibleText(selection)) return;
       if (selection.length > 100000) { showMessage('Select up to 100,000 characters'); return; }
@@ -2412,7 +2417,9 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       byId('convert-preview').textContent = selection.length > 180 ? selection.slice(0, 180) + '…' : selection;
       convertDialog.showModal();
       convertDialog.focus({ preventScroll: true });
-    });
+    }
+    byId('convert-selection').addEventListener('click', showConvertDialog);
+    byId('convert-document').addEventListener('click', showConvertDialog);
     byId('document-link').addEventListener('click', event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         if (input.value) { event.preventDefault(); showMessage('Use a normal click to switch pages'); }

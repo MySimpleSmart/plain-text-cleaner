@@ -213,13 +213,17 @@ async function main() {
     const conversion = await send('Runtime.evaluate', { expression: `(() => {
       const editor = document.getElementById('text');
       if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Header navigation lost Clean Text');
-      if (document.getElementById('convert-document')) throw Error('Full-document conversion control still exists');
+      if (!document.querySelector('.toolbar #convert-document') || !document.getElementById('convert-document').disabled) throw Error('Bottom Convert button missing or enabled without a selection');
       editor.focus(); editor.select(); editor.dispatchEvent(new Event('select'));
-      document.getElementById('convert-selection').click();
+      if (document.getElementById('convert-document').disabled || document.getElementById('convert-selection').disabled) throw Error('Convert buttons are disabled for a valid selection');
+      document.getElementById('convert-document').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      document.getElementById('convert-document').focus();
+      if (document.getElementById('convert-document').disabled) throw Error('Bottom Convert disabled when focused after selecting text');
+      document.getElementById('convert-document').click();
       if (!document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Convert confirmation missing');
       document.getElementById('convert-cancel').click();
       if (document.getElementById('convert-dialog').open || editor.value !== ${JSON.stringify(transferredText)}) throw Error('Cancel changed Clean Text');
-      document.getElementById('convert-selection').click();
+      document.getElementById('convert-document').click();
       return true;
     })()`, returnByValue: true }, sessionId);
     if (conversion.exceptionDetails) throw Error(conversion.exceptionDetails.exception?.description || JSON.stringify(conversion.exceptionDetails));
