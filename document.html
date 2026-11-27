@@ -170,6 +170,11 @@
       return trimmed.replace(/^\|/u, '').replace(/\|$/u, '').split(/(?<!\\)\|/u).map(cell => tidy(cell.replace(/\\\|/gu, '|')));
     }
 
+    function markdownTableHeader(lines, index) {
+      const header = pipeCells(lines[index] || ''), separator = pipeCells(lines[index + 1] || '');
+      return header?.length >= 2 && separator?.length === header.length && separator.every(cell => /^:?-{3,}:?$/u.test(cell)) ? header : null;
+    }
+
     function pairedTable(lines, start) {
       if (lines[start].trim().length > 40 || /[.!?]$/u.test(lines[start].trim())) return null;
       const cells = [], positions = [];
@@ -231,8 +236,8 @@
           while (i < lines.length && lines[i].includes('\t') && rows.length < MAX_TABLE_ROWS) rows.push(lines[i++].split('\t').slice(0, MAX_TABLE_COLUMNS).map(tidy));
           if (rows.some(row => row.length > 1)) { result.push({ type: 'table', rows }); continue; }
         }
-        const header = pipeCells(line), separator = pipeCells(lines[i + 1] || '');
-        if (header?.length >= 2 && separator?.length === header.length && separator.every(cell => /^:?-{3,}:?$/u.test(cell))) {
+        const header = markdownTableHeader(lines, i);
+        if (header) {
           const rows = [header]; i += 2;
           while (i < lines.length && pipeCells(lines[i])?.length === header.length && rows.length < MAX_TABLE_ROWS) rows.push(pipeCells(lines[i++]));
           result.push({ type: 'table', rows }); continue;
@@ -260,7 +265,7 @@
           result.push({ type: 'code', text: code.join('\n') }); continue;
         }
         const paragraph = [line.trim()]; i++;
-        while (i < lines.length && lines[i].trim() && !lines[i].includes('\t') && !listItem(lines[i]) && !/^\s*(?:\\\[|\$\$|#{1,6}\s|`{3,}|~{3,})/u.test(lines[i])) paragraph.push(lines[i++].trim());
+        while (i < lines.length && lines[i].trim() && !lines[i].includes('\t') && !markdownTableHeader(lines, i) && !listItem(lines[i]) && !/^\s*(?:\\\[|\$\$|#{1,6}\s|`{3,}|~{3,})/u.test(lines[i])) paragraph.push(lines[i++].trim());
         result.push({ type: 'paragraph', text: paragraph.join(' ') });
       }
       return result;

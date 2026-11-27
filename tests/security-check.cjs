@@ -198,13 +198,9 @@ async function main() {
       expression: `(() => {
         const editor = document.getElementById('text');
         const clipboardData = new DataTransfer();
-        clipboardData.setData('text/plain', '  Hello   world  ');
+        clipboardData.setData('text/plain', '  Hello   world  \\n\\n# Variance summary\\n\\n| Variable | CV |\\n| --- | --- |\\n| x1 | 0.0742 |\\n| x2 | 0.0950 |');
         editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData, cancelable: true }));
-        const tableData = new DataTransfer();
-        tableData.setData('text/plain', 'Name\\tValue\\nA\\t42');
-        tableData.setData('text/html', '<table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>42</td></tr></table>');
-        editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: tableData, cancelable: true }));
-        if (!editor.value.includes('Hello world') || editor.value.includes('Hello   world') || !editor.value.includes('Name\\tValue')) throw Error('Clean Text did not clean the paste: ' + JSON.stringify(editor.value));
+        if (!editor.value.includes('Hello world') || editor.value.includes('Hello   world') || !editor.value.includes('| Variable | CV |')) throw Error('Clean Text did not clean the paste: ' + JSON.stringify(editor.value));
         document.getElementById('document-link').click();
         return editor.value;
       })()`, returnByValue: true
@@ -212,6 +208,11 @@ async function main() {
     if (transfer.exceptionDetails) throw Error(transfer.exceptionDetails.exception?.description || JSON.stringify(transfer.exceptionDetails));
     const transferredText = transfer.result.value;
     await documentLoaded;
+    if (process.env.DOCUMENT_SCREENSHOT) {
+      await send('Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true }, sessionId);
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+      fs.writeFileSync(process.env.DOCUMENT_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
     const documentResult = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/document' || !window.katex) throw Error('Document page or renderer failed');
@@ -219,7 +220,7 @@ async function main() {
         const source = document.getElementById('source');
         const content = document.getElementById('content');
         const sourceToggle = document.getElementById('source-toggle');
-        if (source.value !== ${JSON.stringify(transferredText)} || document.querySelectorAll('#content table tr').length !== 2 || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Clean Text to Document transfer failed');
+        if (source.value !== ${JSON.stringify(transferredText)} || document.querySelectorAll('#content table tr').length !== 3 || !content.querySelector('p')?.textContent.includes('Hello world') || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Clean Text to Document table transfer failed');
         if (!source.hidden || content.hidden || document.querySelector('.source-pane') || getComputedStyle(document.querySelector('.toolbar')).position !== 'fixed') throw Error('Document should open as one page without source beside it');
         const directPaste = new DataTransfer(); directPaste.setData('text/plain', 'Added paragraph');
         content.focus(); content.dispatchEvent(new ClipboardEvent('paste', { clipboardData: directPaste, cancelable: true, bubbles: true }));
@@ -273,10 +274,6 @@ async function main() {
       })()`, awaitPromise: true, returnByValue: true
     }, sessionId);
     if (documentResult.exceptionDetails) throw Error(documentResult.exceptionDetails.exception?.description || JSON.stringify(documentResult.exceptionDetails));
-    if (process.env.DOCUMENT_SCREENSHOT) {
-      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
-      fs.writeFileSync(process.env.DOCUMENT_SCREENSHOT, Buffer.from(data, 'base64'));
-    }
     const documentReloaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     await send('Page.reload', {}, sessionId);
     await documentReloaded;
