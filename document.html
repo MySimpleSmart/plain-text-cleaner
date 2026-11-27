@@ -6,7 +6,6 @@
   <meta name="description" content="Turn pasted text, tables, lists and LaTeX into a clean document.">
   <title>Document Builder — Plain Text Cleaner</title>
   <link rel="icon" type="image/svg+xml" href="/text-cleaner-logo.svg">
-  <link rel="stylesheet" href="/vendor/katex/katex.min.css" integrity="sha256-AOCwlBcbB/WEIgdfRptP6sKy97zhruyUPAjaTWl/Tc8=" crossorigin="anonymous">
   <style>
     @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Regular-latin.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
     @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Bold-latin.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
@@ -31,11 +30,13 @@
     .icon-button:hover:not(:disabled) { background: #f1f1ef; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .format-actions { position: absolute; z-index: 4; display: flex; gap: 4px; padding: 6px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .format-actions { position: absolute; left: 0; top: 0; z-index: 4; display: flex; gap: 4px; padding: 6px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
     .format-actions .icon-button { font-size: 15px; font-weight: 700; }
     .format-actions .italic { font-style: italic; }
     .format-actions .underline { text-decoration: underline; }
     .format-actions[hidden] { display: none; }
+    .tool-divider { width: 1px; height: 22px; background: #e7e7e5; }
+    .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     main { padding: 32px 48px 180px; }
     .paper { position: relative; max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
     .document-content, textarea { font-size: 16px; line-height: 1.75; }
@@ -63,6 +64,15 @@
     .document-content .formula-error { color: #7e3838; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
     .document-content pre { overflow: auto; margin: 0 0 1em; padding: 12px; background: #f6f6f4; font-size: 13px; }
     .document-content .katex-display { margin: .45em 0; }
+    .document-content .ProseMirror { min-height: max(320px, calc(100svh - 340px)); outline: none; white-space: pre-wrap; overflow-wrap: break-word; }
+    .document-content .ProseMirror > *:first-child { margin-top: 0; }
+    .document-content .ProseMirror > p:only-child:has(> br.ProseMirror-trailingBreak)::before { content: 'Paste or type text here…'; color: #9a9995; float: left; height: 0; pointer-events: none; }
+    .document-content ul[data-type='taskList'] { list-style: none; padding-left: 0; }
+    .document-content ul[data-type='taskList'] li { display: flex; gap: 8px; align-items: flex-start; padding-left: 0; }
+    .document-content ul[data-type='taskList'] li > label { flex: none; padding-top: 3px; }
+    .document-content ul[data-type='taskList'] li > label input { width: 16px; height: 16px; margin: 0; accent-color: #0b2027; }
+    .document-content ul[data-type='taskList'] li > div { flex: 1; min-width: 0; }
+    .document-content ul[data-type='taskList'] li > div > p { margin: 0; }
     .statusbar { position: fixed; right: 20px; bottom: max(24px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 180px; color: #616975; font-size: 11px; line-height: 1.4; text-align: right; }
     .status { margin: 0; }
     .toast { position: fixed; top: 16px; right: 20px; z-index: 10; max-width: 240px; padding: 8px 12px; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; box-shadow: 0 6px 20px #0b202718; font-size: 13px; opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; pointer-events: none; }
@@ -82,6 +92,8 @@
     @media (max-width: 600px) { .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); } .actions { gap: 4px; } main { padding: 72px 24px 180px; } .paper, .document-content, textarea { min-height: 50svh; } }
     @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
   </style>
+  <style id="document-engine-style">@font-face{font-display:block;font-family:KaTeX_AMS;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_AMS-Regular-U6PRYMIZ.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Caligraphic;font-style:normal;font-weight:700;src:url("/assets/fonts/KaTeX_Caligraphic-Bold-5QL5CMTE.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Caligraphic;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Caligraphic-Regular-KX5MEWCF.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Fraktur;font-style:normal;font-weight:700;src:url("/assets/fonts/KaTeX_Fraktur-Bold-2QVFK6NQ.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Fraktur;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Fraktur-Regular-2PEIFJSJ.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Main;font-style:normal;font-weight:700;src:url("/assets/fonts/KaTeX_Main-Bold-YP5VVQRP.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Main;font-style:italic;font-weight:700;src:url("/assets/fonts/KaTeX_Main-BoldItalic-N4V3DX7S.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Main;font-style:italic;font-weight:400;src:url("/assets/fonts/KaTeX_Main-Italic-RELBIK7M.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Main;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Main-Regular-ARRPAO67.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Math;font-style:italic;font-weight:700;src:url("/assets/fonts/KaTeX_Math-BoldItalic-K4WTGH3J.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Math;font-style:italic;font-weight:400;src:url("/assets/fonts/KaTeX_Math-Italic-6KGCHLFN.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_SansSerif;font-style:normal;font-weight:700;src:url("/assets/fonts/KaTeX_SansSerif-Bold-RRNVJFFW.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_SansSerif;font-style:italic;font-weight:400;src:url("/assets/fonts/KaTeX_SansSerif-Italic-HMPFTM52.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_SansSerif;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_SansSerif-Regular-XIQ62X4E.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Script;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Script-Regular-APUWIHLP.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Size1;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Size1-Regular-5LRUTBFT.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Size2;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Size2-Regular-LELKET5D.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Size3;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Size3-Regular-WQRQ47UD.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Size4;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Size4-Regular-CDMV7U5C.woff2") format("woff2")}@font-face{font-display:block;font-family:KaTeX_Typewriter;font-style:normal;font-weight:400;src:url("/assets/fonts/KaTeX_Typewriter-Regular-VBYJ4NRC.woff2") format("woff2")}.katex{font: 1.21em KaTeX_Main,math,Times New Roman,serif;line-height:1.2;position:relative;text-indent:0;text-rendering:auto}.katex *{-ms-high-contrast-adjust:none!important;border-color:currentColor}.katex .katex-version:after{content:"0.18.10"}.katex .katex-mathml{border:0;-webkit-clip-path:inset(50%);clip-path:inset(50%);height:1px;overflow:hidden;padding:0;position:absolute;width:1px}.katex .katex-html>.katex-newline{display:block}.katex .katex-base{position:relative;white-space:nowrap;width:-webkit-min-content;width:-moz-min-content;width:min-content}.katex .katex-base,.katex .katex-strut{display:inline-block}.katex .textbf{font-weight:700}.katex .textit{font-style:italic}.katex .textrm{font-family:KaTeX_Main}.katex .textsf{font-family:KaTeX_SansSerif}.katex .texttt{font-family:KaTeX_Typewriter}.katex .mathnormal{font-family:KaTeX_Math;font-style:italic}.katex .mathit{font-family:KaTeX_Main;font-style:italic}.katex .mathrm{font-style:normal}.katex .mathbf{font-family:KaTeX_Main;font-weight:700}.katex .boldsymbol{font-family:KaTeX_Math;font-style:italic;font-weight:700}.katex .amsrm,.katex .mathbb,.katex .textbb{font-family:KaTeX_AMS}.katex .mathcal{font-family:KaTeX_Caligraphic}.katex .mathfrak,.katex .textfrak{font-family:KaTeX_Fraktur}.katex .mathboldfrak,.katex .textboldfrak{font-family:KaTeX_Fraktur;font-weight:700}.katex .mathtt{font-family:KaTeX_Typewriter}.katex .mathscr,.katex .textscr{font-family:KaTeX_Script}.katex .mathsf,.katex .textsf{font-family:KaTeX_SansSerif}.katex .mathboldsf,.katex .textboldsf{font-family:KaTeX_SansSerif;font-weight:700}.katex .mathitsf,.katex .mathsfit,.katex .textitsf{font-family:KaTeX_SansSerif;font-style:italic}.katex .mainrm{font-family:KaTeX_Main;font-style:normal}.katex .vlist-t{border-collapse:collapse;display:inline-table;table-layout:fixed}.katex .vlist-r{display:table-row}.katex .vlist{display:table-cell;position:relative;vertical-align:bottom}.katex .vlist>span{display:block;height:0;position:relative}.katex .vlist>span>span{display:inline-block}.katex .vlist>span>.pstrut{overflow:hidden;width:0}.katex .vlist-t2{margin-right:-2px}.katex .vlist-s{display:table-cell;font-size:1px;min-width:2px;vertical-align:bottom;width:2px}.katex .katex-vbox{align-items:baseline;display:inline-flex;flex-direction:column}.katex .katex-thinbox{display:inline-flex;flex-direction:row;max-width:0;width:0}.katex .msupsub{text-align:left}.katex .mfrac>span>span{text-align:center}.katex .mfrac .frac-line{border-bottom-style:solid;display:inline-block;width:100%}.katex .katex-hdashline,.katex .katex-hline,.katex .katex-overline .overline-line,.katex .katex-rule,.katex .katex-underline .underline-line,.katex .mfrac .frac-line{min-height:1px}.katex .mspace{display:inline-block}.katex .katex-smash{display:inline;line-height:0}.katex .clap,.katex .llap,.katex .rlap{position:relative;width:0}.katex .clap>.katex-inner,.katex .llap>.katex-inner,.katex .rlap>.katex-inner{position:absolute}.katex .clap>.katex-fix,.katex .llap>.katex-fix,.katex .rlap>.katex-fix{display:inline-block}.katex .llap>.katex-inner{right:0}.katex .clap>.katex-inner,.katex .rlap>.katex-inner{left:0}.katex .clap>.katex-inner>span{margin-left:-50%;margin-right:50%}.katex .katex-rule{border:0 solid;display:inline-block;position:relative}.katex .katex-hline,.katex .katex-overline .overline-line,.katex .katex-underline .underline-line{border-bottom-style:solid;display:inline-block;width:100%}.katex .katex-hdashline{border-bottom-style:dashed;display:inline-block;width:100%}.katex .sqrt>.katex-root{margin-left:.2777777778em;margin-right:-.5555555556em}.katex .fontsize-ensurer.reset-size1.size1,.katex .katex-sizing.reset-size1.size1{font-size:1em}.katex .fontsize-ensurer.reset-size1.size2,.katex .katex-sizing.reset-size1.size2{font-size:1.2em}.katex .fontsize-ensurer.reset-size1.size3,.katex .katex-sizing.reset-size1.size3{font-size:1.4em}.katex .fontsize-ensurer.reset-size1.size4,.katex .katex-sizing.reset-size1.size4{font-size:1.6em}.katex .fontsize-ensurer.reset-size1.size5,.katex .katex-sizing.reset-size1.size5{font-size:1.8em}.katex .fontsize-ensurer.reset-size1.size6,.katex .katex-sizing.reset-size1.size6{font-size:2em}.katex .fontsize-ensurer.reset-size1.size7,.katex .katex-sizing.reset-size1.size7{font-size:2.4em}.katex .fontsize-ensurer.reset-size1.size8,.katex .katex-sizing.reset-size1.size8{font-size:2.88em}.katex .fontsize-ensurer.reset-size1.size9,.katex .katex-sizing.reset-size1.size9{font-size:3.456em}.katex .fontsize-ensurer.reset-size1.size10,.katex .katex-sizing.reset-size1.size10{font-size:4.148em}.katex .fontsize-ensurer.reset-size1.size11,.katex .katex-sizing.reset-size1.size11{font-size:4.976em}.katex .fontsize-ensurer.reset-size2.size1,.katex .katex-sizing.reset-size2.size1{font-size:.8333333333em}.katex .fontsize-ensurer.reset-size2.size2,.katex .katex-sizing.reset-size2.size2{font-size:1em}.katex .fontsize-ensurer.reset-size2.size3,.katex .katex-sizing.reset-size2.size3{font-size:1.1666666667em}.katex .fontsize-ensurer.reset-size2.size4,.katex .katex-sizing.reset-size2.size4{font-size:1.3333333333em}.katex .fontsize-ensurer.reset-size2.size5,.katex .katex-sizing.reset-size2.size5{font-size:1.5em}.katex .fontsize-ensurer.reset-size2.size6,.katex .katex-sizing.reset-size2.size6{font-size:1.6666666667em}.katex .fontsize-ensurer.reset-size2.size7,.katex .katex-sizing.reset-size2.size7{font-size:2em}.katex .fontsize-ensurer.reset-size2.size8,.katex .katex-sizing.reset-size2.size8{font-size:2.4em}.katex .fontsize-ensurer.reset-size2.size9,.katex .katex-sizing.reset-size2.size9{font-size:2.88em}.katex .fontsize-ensurer.reset-size2.size10,.katex .katex-sizing.reset-size2.size10{font-size:3.4566666667em}.katex .fontsize-ensurer.reset-size2.size11,.katex .katex-sizing.reset-size2.size11{font-size:4.1466666667em}.katex .fontsize-ensurer.reset-size3.size1,.katex .katex-sizing.reset-size3.size1{font-size:.7142857143em}.katex .fontsize-ensurer.reset-size3.size2,.katex .katex-sizing.reset-size3.size2{font-size:.8571428571em}.katex .fontsize-ensurer.reset-size3.size3,.katex .katex-sizing.reset-size3.size3{font-size:1em}.katex .fontsize-ensurer.reset-size3.size4,.katex .katex-sizing.reset-size3.size4{font-size:1.1428571429em}.katex .fontsize-ensurer.reset-size3.size5,.katex .katex-sizing.reset-size3.size5{font-size:1.2857142857em}.katex .fontsize-ensurer.reset-size3.size6,.katex .katex-sizing.reset-size3.size6{font-size:1.4285714286em}.katex .fontsize-ensurer.reset-size3.size7,.katex .katex-sizing.reset-size3.size7{font-size:1.7142857143em}.katex .fontsize-ensurer.reset-size3.size8,.katex .katex-sizing.reset-size3.size8{font-size:2.0571428571em}.katex .fontsize-ensurer.reset-size3.size9,.katex .katex-sizing.reset-size3.size9{font-size:2.4685714286em}.katex .fontsize-ensurer.reset-size3.size10,.katex .katex-sizing.reset-size3.size10{font-size:2.9628571429em}.katex .fontsize-ensurer.reset-size3.size11,.katex .katex-sizing.reset-size3.size11{font-size:3.5542857143em}.katex .fontsize-ensurer.reset-size4.size1,.katex .katex-sizing.reset-size4.size1{font-size:.625em}.katex .fontsize-ensurer.reset-size4.size2,.katex .katex-sizing.reset-size4.size2{font-size:.75em}.katex .fontsize-ensurer.reset-size4.size3,.katex .katex-sizing.reset-size4.size3{font-size:.875em}.katex .fontsize-ensurer.reset-size4.size4,.katex .katex-sizing.reset-size4.size4{font-size:1em}.katex .fontsize-ensurer.reset-size4.size5,.katex .katex-sizing.reset-size4.size5{font-size:1.125em}.katex .fontsize-ensurer.reset-size4.size6,.katex .katex-sizing.reset-size4.size6{font-size:1.25em}.katex .fontsize-ensurer.reset-size4.size7,.katex .katex-sizing.reset-size4.size7{font-size:1.5em}.katex .fontsize-ensurer.reset-size4.size8,.katex .katex-sizing.reset-size4.size8{font-size:1.8em}.katex .fontsize-ensurer.reset-size4.size9,.katex .katex-sizing.reset-size4.size9{font-size:2.16em}.katex .fontsize-ensurer.reset-size4.size10,.katex .katex-sizing.reset-size4.size10{font-size:2.5925em}.katex .fontsize-ensurer.reset-size4.size11,.katex .katex-sizing.reset-size4.size11{font-size:3.11em}.katex .fontsize-ensurer.reset-size5.size1,.katex .katex-sizing.reset-size5.size1{font-size:.5555555556em}.katex .fontsize-ensurer.reset-size5.size2,.katex .katex-sizing.reset-size5.size2{font-size:.6666666667em}.katex .fontsize-ensurer.reset-size5.size3,.katex .katex-sizing.reset-size5.size3{font-size:.7777777778em}.katex .fontsize-ensurer.reset-size5.size4,.katex .katex-sizing.reset-size5.size4{font-size:.8888888889em}.katex .fontsize-ensurer.reset-size5.size5,.katex .katex-sizing.reset-size5.size5{font-size:1em}.katex .fontsize-ensurer.reset-size5.size6,.katex .katex-sizing.reset-size5.size6{font-size:1.1111111111em}.katex .fontsize-ensurer.reset-size5.size7,.katex .katex-sizing.reset-size5.size7{font-size:1.3333333333em}.katex .fontsize-ensurer.reset-size5.size8,.katex .katex-sizing.reset-size5.size8{font-size:1.6em}.katex .fontsize-ensurer.reset-size5.size9,.katex .katex-sizing.reset-size5.size9{font-size:1.92em}.katex .fontsize-ensurer.reset-size5.size10,.katex .katex-sizing.reset-size5.size10{font-size:2.3044444444em}.katex .fontsize-ensurer.reset-size5.size11,.katex .katex-sizing.reset-size5.size11{font-size:2.7644444444em}.katex .fontsize-ensurer.reset-size6.size1,.katex .katex-sizing.reset-size6.size1{font-size:.5em}.katex .fontsize-ensurer.reset-size6.size2,.katex .katex-sizing.reset-size6.size2{font-size:.6em}.katex .fontsize-ensurer.reset-size6.size3,.katex .katex-sizing.reset-size6.size3{font-size:.7em}.katex .fontsize-ensurer.reset-size6.size4,.katex .katex-sizing.reset-size6.size4{font-size:.8em}.katex .fontsize-ensurer.reset-size6.size5,.katex .katex-sizing.reset-size6.size5{font-size:.9em}.katex .fontsize-ensurer.reset-size6.size6,.katex .katex-sizing.reset-size6.size6{font-size:1em}.katex .fontsize-ensurer.reset-size6.size7,.katex .katex-sizing.reset-size6.size7{font-size:1.2em}.katex .fontsize-ensurer.reset-size6.size8,.katex .katex-sizing.reset-size6.size8{font-size:1.44em}.katex .fontsize-ensurer.reset-size6.size9,.katex .katex-sizing.reset-size6.size9{font-size:1.728em}.katex .fontsize-ensurer.reset-size6.size10,.katex .katex-sizing.reset-size6.size10{font-size:2.074em}.katex .fontsize-ensurer.reset-size6.size11,.katex .katex-sizing.reset-size6.size11{font-size:2.488em}.katex .fontsize-ensurer.reset-size7.size1,.katex .katex-sizing.reset-size7.size1{font-size:.4166666667em}.katex .fontsize-ensurer.reset-size7.size2,.katex .katex-sizing.reset-size7.size2{font-size:.5em}.katex .fontsize-ensurer.reset-size7.size3,.katex .katex-sizing.reset-size7.size3{font-size:.5833333333em}.katex .fontsize-ensurer.reset-size7.size4,.katex .katex-sizing.reset-size7.size4{font-size:.6666666667em}.katex .fontsize-ensurer.reset-size7.size5,.katex .katex-sizing.reset-size7.size5{font-size:.75em}.katex .fontsize-ensurer.reset-size7.size6,.katex .katex-sizing.reset-size7.size6{font-size:.8333333333em}.katex .fontsize-ensurer.reset-size7.size7,.katex .katex-sizing.reset-size7.size7{font-size:1em}.katex .fontsize-ensurer.reset-size7.size8,.katex .katex-sizing.reset-size7.size8{font-size:1.2em}.katex .fontsize-ensurer.reset-size7.size9,.katex .katex-sizing.reset-size7.size9{font-size:1.44em}.katex .fontsize-ensurer.reset-size7.size10,.katex .katex-sizing.reset-size7.size10{font-size:1.7283333333em}.katex .fontsize-ensurer.reset-size7.size11,.katex .katex-sizing.reset-size7.size11{font-size:2.0733333333em}.katex .fontsize-ensurer.reset-size8.size1,.katex .katex-sizing.reset-size8.size1{font-size:.3472222222em}.katex .fontsize-ensurer.reset-size8.size2,.katex .katex-sizing.reset-size8.size2{font-size:.4166666667em}.katex .fontsize-ensurer.reset-size8.size3,.katex .katex-sizing.reset-size8.size3{font-size:.4861111111em}.katex .fontsize-ensurer.reset-size8.size4,.katex .katex-sizing.reset-size8.size4{font-size:.5555555556em}.katex .fontsize-ensurer.reset-size8.size5,.katex .katex-sizing.reset-size8.size5{font-size:.625em}.katex .fontsize-ensurer.reset-size8.size6,.katex .katex-sizing.reset-size8.size6{font-size:.6944444444em}.katex .fontsize-ensurer.reset-size8.size7,.katex .katex-sizing.reset-size8.size7{font-size:.8333333333em}.katex .fontsize-ensurer.reset-size8.size8,.katex .katex-sizing.reset-size8.size8{font-size:1em}.katex .fontsize-ensurer.reset-size8.size9,.katex .katex-sizing.reset-size8.size9{font-size:1.2em}.katex .fontsize-ensurer.reset-size8.size10,.katex .katex-sizing.reset-size8.size10{font-size:1.4402777778em}.katex .fontsize-ensurer.reset-size8.size11,.katex .katex-sizing.reset-size8.size11{font-size:1.7277777778em}.katex .fontsize-ensurer.reset-size9.size1,.katex .katex-sizing.reset-size9.size1{font-size:.2893518519em}.katex .fontsize-ensurer.reset-size9.size2,.katex .katex-sizing.reset-size9.size2{font-size:.3472222222em}.katex .fontsize-ensurer.reset-size9.size3,.katex .katex-sizing.reset-size9.size3{font-size:.4050925926em}.katex .fontsize-ensurer.reset-size9.size4,.katex .katex-sizing.reset-size9.size4{font-size:.462962963em}.katex .fontsize-ensurer.reset-size9.size5,.katex .katex-sizing.reset-size9.size5{font-size:.5208333333em}.katex .fontsize-ensurer.reset-size9.size6,.katex .katex-sizing.reset-size9.size6{font-size:.5787037037em}.katex .fontsize-ensurer.reset-size9.size7,.katex .katex-sizing.reset-size9.size7{font-size:.6944444444em}.katex .fontsize-ensurer.reset-size9.size8,.katex .katex-sizing.reset-size9.size8{font-size:.8333333333em}.katex .fontsize-ensurer.reset-size9.size9,.katex .katex-sizing.reset-size9.size9{font-size:1em}.katex .fontsize-ensurer.reset-size9.size10,.katex .katex-sizing.reset-size9.size10{font-size:1.2002314815em}.katex .fontsize-ensurer.reset-size9.size11,.katex .katex-sizing.reset-size9.size11{font-size:1.4398148148em}.katex .fontsize-ensurer.reset-size10.size1,.katex .katex-sizing.reset-size10.size1{font-size:.2410800386em}.katex .fontsize-ensurer.reset-size10.size2,.katex .katex-sizing.reset-size10.size2{font-size:.2892960463em}.katex .fontsize-ensurer.reset-size10.size3,.katex .katex-sizing.reset-size10.size3{font-size:.337512054em}.katex .fontsize-ensurer.reset-size10.size4,.katex .katex-sizing.reset-size10.size4{font-size:.3857280617em}.katex .fontsize-ensurer.reset-size10.size5,.katex .katex-sizing.reset-size10.size5{font-size:.4339440694em}.katex .fontsize-ensurer.reset-size10.size6,.katex .katex-sizing.reset-size10.size6{font-size:.4821600771em}.katex .fontsize-ensurer.reset-size10.size7,.katex .katex-sizing.reset-size10.size7{font-size:.5785920926em}.katex .fontsize-ensurer.reset-size10.size8,.katex .katex-sizing.reset-size10.size8{font-size:.6943105111em}.katex .fontsize-ensurer.reset-size10.size9,.katex .katex-sizing.reset-size10.size9{font-size:.8331726133em}.katex .fontsize-ensurer.reset-size10.size10,.katex .katex-sizing.reset-size10.size10{font-size:1em}.katex .fontsize-ensurer.reset-size10.size11,.katex .katex-sizing.reset-size10.size11{font-size:1.1996142719em}.katex .fontsize-ensurer.reset-size11.size1,.katex .katex-sizing.reset-size11.size1{font-size:.2009646302em}.katex .fontsize-ensurer.reset-size11.size2,.katex .katex-sizing.reset-size11.size2{font-size:.2411575563em}.katex .fontsize-ensurer.reset-size11.size3,.katex .katex-sizing.reset-size11.size3{font-size:.2813504823em}.katex .fontsize-ensurer.reset-size11.size4,.katex .katex-sizing.reset-size11.size4{font-size:.3215434084em}.katex .fontsize-ensurer.reset-size11.size5,.katex .katex-sizing.reset-size11.size5{font-size:.3617363344em}.katex .fontsize-ensurer.reset-size11.size6,.katex .katex-sizing.reset-size11.size6{font-size:.4019292605em}.katex .fontsize-ensurer.reset-size11.size7,.katex .katex-sizing.reset-size11.size7{font-size:.4823151125em}.katex .fontsize-ensurer.reset-size11.size8,.katex .katex-sizing.reset-size11.size8{font-size:.578778135em}.katex .fontsize-ensurer.reset-size11.size9,.katex .katex-sizing.reset-size11.size9{font-size:.6945337621em}.katex .fontsize-ensurer.reset-size11.size10,.katex .katex-sizing.reset-size11.size10{font-size:.8336012862em}.katex .fontsize-ensurer.reset-size11.size11,.katex .katex-sizing.reset-size11.size11{font-size:1em}.katex .delimsizing.size1{font-family:KaTeX_Size1}.katex .delimsizing.size2{font-family:KaTeX_Size2}.katex .delimsizing.size3{font-family:KaTeX_Size3}.katex .delimsizing.size4{font-family:KaTeX_Size4}.katex .delimsizing.mult .delim-size1>span{font-family:KaTeX_Size1}.katex .delimsizing.mult .delim-size4>span{font-family:KaTeX_Size4}.katex .nulldelimiter{display:inline-block;width:.12em}.katex .delimcenter,.katex .op-symbol{position:relative}.katex .op-symbol.small-op{font-family:KaTeX_Size1}.katex .op-symbol.large-op{font-family:KaTeX_Size2}.katex .katex-accent>.vlist-t,.katex .op-limits>.vlist-t{text-align:center}.katex .katex-accent .accent-body{position:relative}.katex .katex-accent .accent-body:not(.accent-full){width:0}.katex .katex-overlay{display:block}.katex .mtable .vertical-separator{display:inline-block;min-width:1px}.katex .mtable .arraycolsep{display:inline-block}.katex .mtable .col-align-c>.vlist-t{text-align:center}.katex .mtable .col-align-l>.vlist-t{text-align:left}.katex .mtable .col-align-r>.vlist-t{text-align:right}.katex .svg-align{text-align:left}.katex svg{fill:currentColor;stroke:currentColor;display:block;height:inherit;position:absolute;width:100%}.katex svg path{stroke:none}.katex svg{fill-rule:nonzero;fill-opacity:1;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1}.katex img{border-style:none;max-height:none;max-width:none;min-height:0;min-width:0}.katex .katex-stretchy{display:block;overflow:hidden;position:relative;width:100%}.katex .katex-stretchy:after,.katex .katex-stretchy:before{content:""}.katex .hide-tail{overflow:hidden;position:relative;width:100%}.katex .halfarrow-left{left:0;overflow:hidden;position:absolute;width:50.2%}.katex .halfarrow-right{overflow:hidden;position:absolute;right:0;width:50.2%}.katex .brace-left{left:0;overflow:hidden;position:absolute;width:25.1%}.katex .brace-center{left:25%;overflow:hidden;position:absolute;width:50%}.katex .brace-right{overflow:hidden;position:absolute;right:0;width:25.1%}.katex .x-arrow-pad{padding:0 .5em}.katex .cd-arrow-pad{padding:0 .55556em 0 .27778em}.katex .mover,.katex .munder,.katex .x-arrow{text-align:center}.katex .boxpad{padding:0 .3em}.katex .fbox,.katex .fcolorbox{border:.04em solid;box-sizing:border-box}.katex .cancel-pad{padding:0 .2em}.katex .cancel-lap{margin-left:-.2em;margin-right:-.2em}.katex .katex-sout{border-bottom-style:solid;border-bottom-width:.08em}.katex .angl{border-right:.049em solid;border-top:.049em solid;box-sizing:border-box;margin-right:.03889em}.katex .anglpad{padding:0 .03889em}.katex .reflectbox{display:inline-block;transform:scaleX(-1)}.katex .eqn-num:before{content:"(" counter(katexEqnNo) ")";counter-increment:katexEqnNo}.katex .mml-eqn-num:before{content:"(" counter(mmlEqnNo) ")";counter-increment:mmlEqnNo}.katex .mtr-glue{width:50%}.katex .cd-vert-arrow{display:inline-block;position:relative}.katex .cd-label-left{display:inline-block;position:absolute;right:calc(50% + .3em);text-align:left}.katex .cd-label-right{display:inline-block;left:calc(50% + .3em);position:absolute;text-align:right}.katex-display{display:block;margin:1em 0;text-align:center}.katex-display>.katex{display:block;text-align:center;white-space:nowrap}.katex-display>.katex>.katex-html{display:block;position:relative}.katex-display>.katex>.katex-html>.katex-tag{position:absolute;right:0}.katex-display.leqno>.katex>.katex-html>.katex-tag{left:0;right:auto}.katex-display.fleqn>.katex{padding-left:2em;text-align:left}body{counter-reset:katexEqnNo mmlEqnNo}
+</style>
 </head>
 <body>
   <a class="brand" href="/" aria-label="Back to home"><img src="/text-cleaner-logo.svg" alt="" width="24" height="24"></a>
@@ -90,12 +102,20 @@
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
     <button id="source-toggle" class="icon-button" aria-label="Show original source" title="Show original source · editing it rebuilds the Document" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
+    <span class="tool-divider" aria-hidden="true"></span>
+    <button id="format-bold-main" class="icon-button" type="button" aria-label="Bold" title="Bold (Ctrl/Cmd+B)" aria-pressed="false"><strong>B</strong></button>
+    <button id="format-italic-main" class="icon-button" type="button" aria-label="Italic" title="Italic (Ctrl/Cmd+I)" aria-pressed="false"><em>I</em></button>
+    <button id="format-underline-main" class="icon-button" type="button" aria-label="Underline" title="Underline (Ctrl/Cmd+U)" aria-pressed="false"><u>U</u></button>
+    <span class="tool-divider" aria-hidden="true"></span>
+    <button id="list-bullet" class="icon-button" type="button" aria-label="Bullet list" title="Bullet list" aria-pressed="false">•</button>
+    <button id="list-ordered" class="icon-button" type="button" aria-label="Numbered list" title="Numbered list" aria-pressed="false">1.</button>
+    <button id="list-task" class="icon-button" type="button" aria-label="Checklist" title="Checklist" aria-pressed="false">☐</button>
     <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
   </div></section>
   <main>
     <div class="paper" id="paper">
-      <div id="content" class="document-content" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Document. Type or paste here."></div>
+      <div id="content" class="document-content" aria-label="Document editor"></div>
       <div id="format-actions" class="format-actions" role="group" aria-label="Style selected document text" hidden>
         <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold">B</button>
         <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic">I</button>
@@ -121,7 +141,7 @@
     <p>This will rebuild the Document from its source and remove direct edits and manual styling.</p>
     <div class="confirm-actions"><button id="regenerate-cancel" type="button">CANCEL</button><button id="regenerate-confirm" class="confirm" type="button">REGENERATE</button></div>
   </dialog>
-  <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
+  <script src="/assets/document-engine.js" integrity="sha256-dgF/Y25w2LbqcLgS4Eb77qqHQlfL/gKotdQ3IYIiqW0=" crossorigin="anonymous"></script>
   <script id="document-app">
     const source = document.getElementById('source');
     const content = document.getElementById('content');
@@ -138,19 +158,6 @@
     const documentEditKey = 'plain-text-cleaner.document-edits.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
-    let blocks = [];
-    let renderTimer;
-    let copyTimer;
-    let toastTimer;
-    let sessionTimer;
-    let sourceMode = false;
-    let formats = [];
-    let formatSource = '';
-    let selectedRange = null;
-    let editedHTML = null;
-    let lastSafeHTML = '';
-    let sourceFromEditor = false;
-    const formatActions = document.getElementById('format-actions');
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
     const tidy = value => value.replace(/\r\n?/g, '\n').replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ').replace(/[ \t]+/gu, ' ').trim();
@@ -322,314 +329,322 @@
       return result;
     }
 
-    function renderInline(text, parent) {
+    const stateKey = 'plain-text-cleaner.document-state.v2';
+    const byId = id => document.getElementById(id);
+    const emptyDoc = () => ({ type: 'doc', content: [{ type: 'paragraph' }] });
+    let editor;
+    let dirty = false;
+    let sourceFromEditor = false;
+    let sourceSnapshot = '';
+    let saveTimer;
+    let copyTimer;
+    let toastTimer;
+    let sourceTimer;
+    let sourceMode = false;
+    const formatActions = byId('format-actions');
+    const formatActionsRule = Array.from(document.styleSheets[0].cssRules).find(rule => rule.selectorText === '.format-actions');
+    const buttons = {
+      bold: [byId('format-bold'), byId('format-bold-main')],
+      italic: [byId('format-italic'), byId('format-italic-main')],
+      underline: [byId('format-underline'), byId('format-underline-main')],
+      bulletList: [byId('list-bullet')], orderedList: [byId('list-ordered')], taskList: [byId('list-task')]
+    };
+
+    function inlineNodes(value) {
+      const nodes = [];
       const pattern = /\\\(([\s\S]*?)\\\)|\$([^$\n]+)\$/gu;
       let cursor = 0;
-      for (const match of text.matchAll(pattern)) {
-        parent.append(document.createTextNode(text.slice(cursor, match.index)));
-        const formula = document.createElement('span');
-        formula.className = 'inline-formula'; formula.dataset.latex = match[1] || match[2]; formula.contentEditable = 'false';
-        try { katex.render(match[1] || match[2], formula, { throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
-        catch { formula.className = 'formula-error'; formula.textContent = match[0]; }
-        parent.append(formula);
+      for (const match of value.matchAll(pattern)) {
+        if (match.index > cursor) nodes.push({ type: 'text', text: value.slice(cursor, match.index) });
+        nodes.push({ type: 'inlineMath', attrs: { latex: match[1] || match[2] } });
         cursor = match.index + match[0].length;
       }
-      parent.append(document.createTextNode(text.slice(cursor)));
+      if (cursor < value.length) nodes.push({ type: 'text', text: value.slice(cursor) });
+      return nodes;
     }
 
-    function renderList(items, parent) {
-      const stack = [];
+    function listNodes(items) {
+      const roots = [], stack = [];
       for (const item of items) {
-        while (stack.length && item.indent < stack.at(-1).indent) stack.pop();
-        let current = stack.at(-1);
-        if (current && item.indent === current.indent && item.ordered !== current.ordered) { stack.pop(); current = stack.at(-1); }
-        if (!current || item.indent > current.indent || item.ordered !== current.ordered) {
-          const list = document.createElement(item.ordered ? 'ol' : 'ul');
-          if (item.ordered) list.start = item.number;
-          (current && item.indent > current.indent ? current.lastItem : parent)?.append(list);
-          current = { indent: item.indent, ordered: item.ordered, list, lastItem: null };
-          stack.push(current);
+        const type = item.marker === '☑' || item.marker === '☐' ? 'taskList' : item.ordered ? 'orderedList' : 'bulletList';
+        while (stack.length && (item.indent < stack.at(-1).indent ||
+          (item.indent === stack.at(-1).indent && (type !== stack.at(-1).type ||
+          (type === 'orderedList' && item.number !== stack.at(-1).lastNumber + 1))))) stack.pop();
+        if (!stack.length || item.indent > stack.at(-1).indent) {
+          const list = { type, content: [] };
+          if (type === 'orderedList') list.attrs = { start: item.number || 1 };
+          if (stack.length) stack.at(-1).item.content.push(list);
+          else roots.push(list);
+          stack.push({ indent: item.indent, type, list, item: null, lastNumber: null });
         }
-        const li = document.createElement('li');
-        if (item.ordered) li.value = item.number;
-        renderInline(item.text, li);
-        current.list.append(li);
-        current.lastItem = li;
+        const node = {
+          type: type === 'taskList' ? 'taskItem' : 'listItem',
+          content: [{ type: 'paragraph', content: inlineNodes(item.text) }]
+        };
+        if (type === 'taskList') node.attrs = { checked: item.marker === '☑' };
+        stack.at(-1).list.content.push(node);
+        stack.at(-1).item = node;
+        stack.at(-1).lastNumber = item.number;
       }
+      return roots;
     }
 
-    function appendBlocks(items, parent) {
+    function blocksToJSON(items) {
+      const output = [];
       for (const block of items) {
-        if (block.type === 'list') { renderList(block.items, parent); continue; }
+        if (block.type === 'list') { output.push(...listNodes(block.items)); continue; }
         if (block.type === 'table') {
-          const table = document.createElement('table'), body = document.createElement('tbody');
-          for (const [index, cells] of block.rows.entries()) {
-            const row = document.createElement('tr');
-            for (const value of cells) { const cell = document.createElement(index === 0 ? 'th' : 'td'); cell.textContent = value; row.append(cell); }
-            body.append(row);
-          }
-          table.append(body); parent.append(table); continue;
+          const rows = block.rows.map((cells, rowIndex) => ({ type: 'tableRow', content: cells.map(value => ({
+            type: rowIndex === 0 ? 'tableHeader' : 'tableCell',
+            content: [{ type: 'paragraph', content: inlineNodes(value) }]
+          })) }));
+          output.push({ type: 'table', content: rows }); continue;
         }
-        if (block.type === 'formula') {
-          const holder = document.createElement('div'); holder.className = 'formula'; holder.dataset.latex = block.latex; holder.contentEditable = 'false';
-          try { katex.render(block.latex, holder, { displayMode: true, throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
-          catch { holder.classList.add('formula-error'); holder.textContent = '\\[' + block.latex + '\\]'; }
-          parent.append(holder); continue;
+        if (block.type === 'formula') { output.push({ type: 'blockMath', attrs: { latex: block.latex } }); continue; }
+        if (block.type === 'heading') { output.push({ type: 'heading', attrs: { level: block.level }, content: inlineNodes(block.text) }); continue; }
+        if (block.type === 'code') { output.push({ type: 'codeBlock', content: block.text ? [{ type: 'text', text: block.text }] : [] }); continue; }
+        output.push({ type: 'paragraph', content: inlineNodes(block.text) });
+      }
+      return { type: 'doc', content: output.length ? output : [{ type: 'paragraph' }] };
+    }
+
+    function textFromNodes(nodes = []) {
+      return nodes.map(node => node.type === 'text' ? node.text : node.type === 'inlineMath' ? `\\(${node.attrs?.latex || ''}\\)` : node.type === 'hardBreak' ? '\n' : textFromNodes(node.content)).join('');
+    }
+
+    function documentText(json = editor.getJSON()) {
+      const visit = (node, indent = 0) => {
+        if (node.type === 'table') {
+          return (node.content || []).map(row => (row.content || []).map(cell => textFromNodes(cell.content)).join('\t')).join('\n');
         }
-        const element = document.createElement(block.type === 'heading' ? `h${block.level}` : block.type === 'code' ? 'pre' : 'p');
-        if (block.type === 'code') element.textContent = block.text;
-        else renderInline(block.text, element);
-        parent.append(element);
-      }
-    }
-
-    const allowedDocumentTags = new Set(['P', 'DIV', 'SPAN', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD', 'PRE', 'CODE', 'STRONG', 'EM', 'U', 'B', 'I', 'BLOCKQUOTE']);
-    const discardDocumentTags = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'IMG', 'SVG', 'AUDIO', 'VIDEO', 'FORM', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA', 'LINK', 'META']);
-    function safeContentHTML(root = content) {
-      const clean = root.cloneNode(true);
-      for (const formula of clean.querySelectorAll('[data-latex]')) formula.replaceChildren();
-      for (const element of [...clean.querySelectorAll('*')]) {
-        if (!element.isConnected && element.parentNode === null) continue;
-        if (!allowedDocumentTags.has(element.tagName)) {
-          if (discardDocumentTags.has(element.tagName)) element.remove();
-          else element.replaceWith(document.createTextNode(element.textContent || ''));
-          continue;
+        if (node.type === 'blockMath') return `\\[\n${node.attrs?.latex || ''}\n\\]`;
+        if (['bulletList', 'orderedList', 'taskList'].includes(node.type)) {
+          let number = node.attrs?.start || 1;
+          return (node.content || []).map(item => {
+            const paragraph = item.content?.find(child => child.type === 'paragraph');
+            const marker = node.type === 'orderedList' ? `${number++}.` : node.type === 'taskList' ? item.attrs?.checked ? '☑' : '☐' : '•';
+            return [`${' '.repeat(indent)}${marker} ${textFromNodes(paragraph?.content)}`,
+              ...(item.content || []).filter(child => ['bulletList', 'orderedList', 'taskList'].includes(child.type)).map(child => visit(child, indent + 2))].join('\n');
+          }).join('\n');
         }
-        for (const attribute of [...element.attributes]) {
-          const name = attribute.name.toLowerCase();
-          const formula = element.classList.contains('formula') || element.classList.contains('inline-formula');
-          const keep = (name === 'class' && formula) || (name === 'data-latex' && formula && attribute.value.length <= 10000) ||
-            (name === 'contenteditable' && formula && attribute.value === 'false') ||
-            (name === 'start' && element.tagName === 'OL') || (name === 'value' && element.tagName === 'LI') ||
-            (['colspan', 'rowspan'].includes(name) && ['TH', 'TD'].includes(element.tagName));
-          if (!keep) element.removeAttribute(attribute.name);
-        }
-      }
-      return clean.innerHTML;
+        if (node.type === 'heading') return `${'#'.repeat(node.attrs?.level || 1)} ${textFromNodes(node.content)}`;
+        if (node.type === 'codeBlock') return `\`\`\`\n${textFromNodes(node.content)}\n\`\`\``;
+        return textFromNodes(node.content);
+      };
+      return (json.content || []).map(node => visit(node)).join('\n\n');
     }
 
-    function hydrateFormulas(root) {
-      for (const formula of root.querySelectorAll('[data-latex]')) {
-        const latex = formula.dataset.latex || '';
-        try { katex.render(latex, formula, { displayMode: formula.classList.contains('formula'), throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
-        catch { formula.classList.add('formula-error'); formula.textContent = '\\[' + latex + '\\]'; }
-      }
-    }
-
-    function restoreEditedHTML() {
-      const holder = document.createElement('div');
-      holder.innerHTML = editedHTML;
-      holder.innerHTML = safeContentHTML(holder);
-      hydrateFormulas(holder);
-      editedHTML = safeContentHTML(holder);
-      content.replaceChildren(...holder.childNodes);
-    }
-
-    function safeExportHTML() {
-      const holder = document.createElement('div');
-      holder.innerHTML = safeContentHTML(content);
-      hydrateFormulas(holder);
-      return holder.innerHTML;
-    }
-
-    function refreshStatus() {
-      const currentText = editedHTML === null ? source.value : content.innerText;
-      document.getElementById('source-status').textContent = currentText ? `${currentText.length.toLocaleString()} characters` : 'Nothing pasted yet';
-      const tables = editedHTML === null ? blocks.filter(block => block.type === 'table').length : content.querySelectorAll('table').length;
-      const lists = editedHTML === null ? blocks.filter(block => block.type === 'list').length : content.querySelectorAll('ul, ol').length;
-      const formulas = editedHTML === null ? blocks.filter(block => block.type === 'formula').length : content.querySelectorAll('.formula').length;
-      const count = editedHTML === null ? blocks.length : content.children.length;
-      status.textContent = currentText ? `${count} blocks · ${tables} tables · ${lists} lists · ${formulas} formulas` : 'Ready';
-      clearButton.disabled = !source.value && !content.textContent.trim();
-      document.getElementById('regenerate').disabled = !source.value.trim();
-      copyButton.disabled = !currentText.trim() || copyButton.classList.contains('copied');
-    }
-
-    function render() {
-      clearTimeout(renderTimer);
-      if (formatSource !== source.value) { formats = []; editedHTML = null; sourceFromEditor = false; formatSource = source.value; }
-      blocks = parseDocument(source.value);
-      content.replaceChildren();
-      if (editedHTML !== null) restoreEditedHTML();
-      else { appendBlocks(blocks, content); for (const format of formats) applyFormatRange(format); }
-      selectedRange = null;
-      formatActions.hidden = true;
-      lastSafeHTML = safeContentHTML(content);
-      refreshStatus();
-    }
-
-    function applyFormatRange({ start, end, tag }) {
-      if (!['strong', 'em', 'u'].includes(tag) || start < 0 || end <= start || end > content.textContent.length) return;
-      const nodes = [];
-      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-      let node, offset = 0;
-      while ((node = walker.nextNode())) {
-        const nodeStart = offset;
-        offset += node.length;
-        if (node.parentElement.closest('.formula') || offset <= start || nodeStart >= end) continue;
-        nodes.push({ node, from: Math.max(0, start - nodeStart), to: Math.min(node.length, end - nodeStart) });
-      }
-      for (const part of nodes) {
-        let target = part.node;
-        if (part.from) target = target.splitText(part.from);
-        if (part.to - part.from < target.length) target.splitText(part.to - part.from);
-        const mark = document.createElement(tag);
-        target.parentNode.replaceChild(mark, target);
-        mark.append(target);
-      }
-    }
-
-    function updateFormatControls() {
-      const selection = window.getSelection();
-      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-      const valid = !sourceMode && range && !range.collapsed && content.contains(range.commonAncestorContainer) &&
-        !range.startContainer.parentElement?.closest('.formula') && !range.endContainer.parentElement?.closest('.formula');
-      formatActions.hidden = !valid;
-      selectedRange = valid ? range.cloneRange() : null;
-      if (!valid) return;
-      const rect = range.getBoundingClientRect();
-      const paperRect = document.getElementById('paper').getBoundingClientRect();
-      formatActions.style.left = `${Math.max(0, Math.min(rect.left - paperRect.left, paperRect.width - formatActions.offsetWidth))}px`;
-      const toolbarTop = document.querySelector('.toolbar').getBoundingClientRect().top;
-      const below = rect.bottom + formatActions.offsetHeight + 8;
-      formatActions.style.top = `${(below > toolbarTop - 8 && rect.top > formatActions.offsetHeight + 8 ? rect.top - formatActions.offsetHeight - 8 : rect.bottom + 8) - paperRect.top}px`;
-    }
-
-    document.addEventListener('selectionchange', updateFormatControls);
-    formatActions.addEventListener('pointerdown', event => { if (event.target.closest('button')) event.preventDefault(); });
-    for (const [id, tag] of [['format-bold', 'strong'], ['format-italic', 'em'], ['format-underline', 'u']]) {
-      document.getElementById(id).addEventListener('click', () => {
-        if (!selectedRange || sourceMode) return;
-        const before = selectedRange.cloneRange();
-        before.selectNodeContents(content);
-        before.setEnd(selectedRange.startContainer, selectedRange.startOffset);
-        const start = before.toString().length;
-        const end = start + selectedRange.toString().length;
-        if (end <= start) return;
-        if (editedHTML !== null) {
-          applyFormatRange({ start, end, tag });
-          editedHTML = safeContentHTML(content);
-          lastSafeHTML = editedHTML;
-          selectedRange = null;
-          formatActions.hidden = true;
-        } else {
-          formats.push({ start, end, tag });
-          render();
-        }
-        keepDocumentInTab();
-        showToast(tag === 'strong' ? 'Bold applied' : tag === 'em' ? 'Italic applied' : 'Underline applied');
-      });
-    }
-
-    function showToast(text) {
+    function showToast(message) {
       clearTimeout(toastTimer);
-      toast.textContent = text; toast.classList.add('visible');
+      toast.textContent = message;
+      toast.classList.add('visible');
       toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000);
     }
 
-    function keepDocumentInTab() {
-      clearTimeout(sessionTimer);
+    function saveDocument() {
+      clearTimeout(saveTimer);
       try {
-        if (source.value || editedHTML !== null) sessionStorage.setItem(documentSessionKey, source.value);
-        else sessionStorage.removeItem(documentSessionKey);
-        if (source.value && formats.length) sessionStorage.setItem(documentFormatKey, JSON.stringify({ source: source.value, formats }));
-        else sessionStorage.removeItem(documentFormatKey);
-        if (editedHTML !== null) sessionStorage.setItem(documentEditKey, JSON.stringify({ source: source.value, html: editedHTML, sourceFromEditor }));
-        else sessionStorage.removeItem(documentEditKey);
+        if (editor.isEmpty && !source.value) {
+          sessionStorage.removeItem(documentSessionKey);
+          sessionStorage.removeItem(stateKey);
+        } else {
+          sessionStorage.setItem(documentSessionKey, source.value);
+          sessionStorage.setItem(stateKey, JSON.stringify({ source: source.value, document: editor.getJSON(), dirty, sourceFromEditor }));
+        }
         return true;
-      } catch { return false; }
+      } catch { showToast('Could not save Document in this tab'); return false; }
     }
 
-    function setSourceMode(enabled) {
-      sourceMode = enabled;
-      formatActions.hidden = true;
-      source.hidden = !enabled;
-      content.hidden = enabled;
-      sourceToggle.setAttribute('aria-pressed', String(enabled));
-      sourceToggle.setAttribute('aria-label', enabled ? 'Show document' : 'Show original source');
-      sourceToggle.title = enabled ? 'Show document' : 'Show original source · editing it rebuilds the Document';
-      if (enabled) source.focus({ preventScroll: true });
-      else { render(); content.focus({ preventScroll: true }); }
+    function refreshStatus() {
+      const json = editor.getJSON();
+      const count = { blocks: 0, tables: 0, lists: 0, formulas: 0 };
+      const visit = node => {
+        if (node.type === 'table') count.tables++;
+        if (['bulletList', 'orderedList', 'taskList'].includes(node.type)) count.lists++;
+        if (['inlineMath', 'blockMath'].includes(node.type)) count.formulas++;
+        for (const child of node.content || []) visit(child);
+      };
+      for (const node of json.content || []) { count.blocks++; visit(node); }
+      const plain = documentText(json);
+      status.textContent = editor.isEmpty ? 'Ready' : `${count.blocks} blocks · ${count.tables} tables · ${count.lists} lists · ${count.formulas} formulas`;
+      byId('source-status').textContent = editor.isEmpty ? 'Nothing pasted yet' : `${plain.length.toLocaleString()} characters`;
+      clearButton.disabled = editor.isEmpty;
+      byId('regenerate').disabled = !source.value.trim();
+      copyButton.disabled = editor.isEmpty || copyButton.classList.contains('copied');
     }
 
-    function insertValue(plain, html = '') {
+    function refreshTools() {
+      for (const [type, group] of Object.entries(buttons)) {
+        for (const button of group) {
+          button.disabled = sourceMode;
+          button.setAttribute('aria-pressed', String(!sourceMode && editor.isActive(type)));
+        }
+      }
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const valid = !sourceMode && !editor.state.selection.empty && range && content.contains(range.commonAncestorContainer);
+      formatActions.hidden = !valid;
+      if (!valid) return;
+      const box = range.getBoundingClientRect(), paper = byId('paper').getBoundingClientRect();
+      formatActionsRule.style.left = `${Math.max(0, Math.min(box.left - paper.left, paper.width - formatActions.offsetWidth))}px`;
+      const toolbarTop = document.querySelector('.toolbar').getBoundingClientRect().top;
+      formatActionsRule.style.top = `${(box.bottom + formatActions.offsetHeight > toolbarTop - 8 && box.top > formatActions.offsetHeight + 8 ? box.top - formatActions.offsetHeight - 8 : box.bottom + 8) - paper.top}px`;
+    }
+
+    function setFromSource() {
+      editor.commands.setContent(blocksToJSON(parseDocument(source.value)), { emitUpdate: false });
+      sourceSnapshot = source.value;
+      dirty = false;
+      sourceFromEditor = !source.value.trim();
+      refreshStatus(); refreshTools(); saveDocument();
+    }
+
+    function legacyContent() {
+      try {
+        const edit = JSON.parse(sessionStorage.getItem(documentEditKey) || 'null');
+        if (edit?.source === source.value && typeof edit.html === 'string') {
+          const holder = document.createElement('div'); holder.innerHTML = edit.html;
+          for (const node of holder.querySelectorAll('script,style,iframe,object,embed,img,svg,video,audio,form')) node.remove();
+          for (const element of holder.querySelectorAll('*')) for (const attr of [...element.attributes]) if (/^on/i.test(attr.name) || ['href', 'src', 'style'].includes(attr.name)) element.removeAttribute(attr.name);
+          for (const formula of holder.querySelectorAll('.formula[data-latex],.inline-formula[data-latex]')) {
+            formula.setAttribute('data-type', formula.classList.contains('formula') ? 'block-math' : 'inline-math');
+          }
+          return { html: holder.innerHTML, sourceFromEditor: edit.sourceFromEditor === true };
+        }
+        const saved = JSON.parse(sessionStorage.getItem(documentFormatKey) || 'null');
+        if (saved?.source !== source.value || !Array.isArray(saved.formats) || !saved.formats.length) return null;
+        return { formats: saved.formats, sourceFromEditor: false };
+      } catch { return null; }
+    }
+
+    function restoreLegacyFormats(formats) {
+      for (const format of formats.slice(0, 1000)) {
+        if (!['strong', 'em', 'u'].includes(format.tag) || !Number.isSafeInteger(format.start) || !Number.isSafeInteger(format.end) || format.start < 0 || format.end <= format.start) continue;
+        const walker = document.createTreeWalker(editor.view.dom, NodeFilter.SHOW_TEXT);
+        let node, offset = 0, start = null, end = null;
+        while ((node = walker.nextNode())) {
+          const next = offset + node.length;
+          if (start === null && format.start >= offset && format.start < next) start = editor.view.posAtDOM(node, format.start - offset);
+          if (format.end > offset && format.end <= next) { end = editor.view.posAtDOM(node, format.end - offset); break; }
+          offset = next;
+        }
+        if (start === null || end === null || end <= start) continue;
+        const mark = format.tag === 'strong' ? 'bold' : format.tag === 'em' ? 'italic' : 'underline';
+        editor.chain().setTextSelection({ from: start, to: end }).setMark(mark).run();
+      }
+    }
+
+    function insertText(plain, html = '') {
       const value = richSource(html) || plain;
       if (!value) return false;
-      const start = sourceMode ? source.selectionStart : source.value.length;
-      const end = sourceMode ? source.selectionEnd : source.value.length;
-      const insert = sourceMode || !source.value.trim() ? value : '\n\n' + value;
-      if (!sourceMode && editedHTML !== null) {
-        if (content.innerText.length + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
-        appendBlocks(parseDocument(value), content);
-        if (sourceFromEditor) { source.value = content.innerText; formatSource = source.value; }
-        editedHTML = safeContentHTML(content);
-        lastSafeHTML = editedHTML;
-        refreshStatus();
-        keepDocumentInTab();
-        return true;
-      }
-      if (source.value.length - (end - start) + insert.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
-      source.setRangeText(insert, start, end, 'end');
-      render();
-      keepDocumentInTab();
+      if (value.length > MAX_SOURCE || editor.state.doc.textContent.length + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
+      if (sourceMode) {
+        source.setRangeText(value, source.selectionStart, source.selectionEnd, 'end');
+        setFromSource();
+      } else editor.chain().focus().insertContent(blocksToJSON(parseDocument(value)).content).run();
       return true;
     }
 
-    content.addEventListener('beforeinput', event => {
-      if (event.inputType.startsWith('insert') && content.textContent.length + (event.data?.length || 0) > MAX_SOURCE) {
-        event.preventDefault(); showToast('Document limit: 100,000 characters');
-      }
-    });
-    content.addEventListener('input', () => {
-      if (content.textContent.length > MAX_SOURCE) {
-        editedHTML = lastSafeHTML;
-        restoreEditedHTML();
-        showToast('Document limit: 100,000 characters');
-        return;
-      }
-      editedHTML = safeContentHTML(content);
-      lastSafeHTML = editedHTML;
-      formats = [];
-      if (!source.value || sourceFromEditor) {
-        sourceFromEditor = true;
-        source.value = content.innerText;
-        formatSource = source.value;
-      }
-      refreshStatus();
-      keepDocumentInTab();
-    });
+    window.handleDocumentPaste = event => {
+      const plain = event.clipboardData?.getData('text/plain') || '';
+      const html = event.clipboardData?.getData('text/html') || '';
+      event.preventDefault();
+      return insertText(plain, html);
+    };
 
+    function exportHTML() {
+      const holder = document.createElement('div');
+      holder.innerHTML = editor.getHTML().replace(/\sstyle="[^"]*"/gu, '');
+      for (const formula of holder.querySelectorAll('[data-type="block-math"], [data-type="inline-math"]')) {
+        const latex = formula.getAttribute('data-latex') || '';
+        const display = formula.getAttribute('data-type') === 'block-math';
+        formula.innerHTML = window.renderDocumentMath(latex, display);
+      }
+      for (const item of holder.querySelectorAll('li[data-type="taskItem"]')) {
+        const checked = item.getAttribute('data-checked') === 'true';
+        item.querySelector(':scope > label')?.remove();
+        item.removeAttribute('data-type');
+        item.removeAttribute('data-checked');
+        item.insertBefore(document.createTextNode(checked ? '☑ ' : '☐ '), item.firstChild);
+      }
+      return `<html><head><meta charset="utf-8"></head><body>${holder.innerHTML}</body></html>`;
+    }
+
+    const transferred = (() => { try { return sessionStorage.getItem(transferKey); } catch { return null; } })();
+    try {
+      const previous = sessionStorage.getItem(documentSessionKey);
+      if (transferred !== null) {
+        sessionStorage.removeItem(transferKey);
+        if (transferred.length <= MAX_SOURCE) source.value = transferred;
+        else showToast('Document limit: 100,000 characters');
+      } else if (previous !== null && previous.length <= MAX_SOURCE) source.value = previous;
+    } catch { /* Editing still works without browser storage. */ }
+    sourceSnapshot = source.value;
+    sourceFromEditor = !source.value.trim();
+    editor = window.createDocumentEditor(content, blocksToJSON(parseDocument(source.value)), () => {
+      dirty = true;
+      if (sourceFromEditor) { source.value = documentText(); sourceSnapshot = source.value; }
+      refreshStatus(); refreshTools();
+      clearTimeout(saveTimer); saveTimer = setTimeout(saveDocument, 160);
+    }, refreshTools);
+    if (transferred === null) {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(stateKey) || 'null');
+        if (saved?.source === source.value && saved.document?.type === 'doc' && JSON.stringify(saved.document).length <= 2000000) {
+          editor.commands.setContent(saved.document, { emitUpdate: false });
+          dirty = saved.dirty === true;
+          sourceFromEditor = saved.sourceFromEditor === true;
+        } else {
+          const old = legacyContent();
+          if (old) {
+            if (old.html) editor.commands.setContent(old.html, { emitUpdate: false });
+            if (old.formats) restoreLegacyFormats(old.formats);
+            dirty = true; sourceFromEditor = old.sourceFromEditor;
+          }
+        }
+      } catch { /* Invalid saved content falls back to the original source. */ }
+    }
+    refreshStatus(); refreshTools(); saveDocument();
+
+    const toolCommands = {
+      bold: () => editor.chain().focus().toggleBold().run(),
+      italic: () => editor.chain().focus().toggleItalic().run(),
+      underline: () => editor.chain().focus().toggleUnderline().run(),
+      bulletList: () => editor.chain().focus().toggleBulletList().run(),
+      orderedList: () => editor.chain().focus().toggleOrderedList().run(),
+      taskList: () => editor.chain().focus().toggleTaskList().run()
+    };
+    for (const [type, group] of Object.entries(buttons)) for (const button of group) {
+      button.addEventListener('pointerdown', event => event.preventDefault());
+      button.addEventListener('click', () => { if (!sourceMode) toolCommands[type](); });
+    }
+    document.addEventListener('selectionchange', refreshTools);
+    editor.on('transaction', refreshTools);
+    sourceToggle.addEventListener('click', () => {
+      sourceMode = !sourceMode;
+      source.hidden = !sourceMode;
+      content.hidden = sourceMode;
+      sourceToggle.setAttribute('aria-pressed', String(sourceMode));
+      sourceToggle.setAttribute('aria-label', sourceMode ? 'Show document' : 'Show original source');
+      sourceToggle.title = sourceMode ? 'Show document' : 'Show original source · editing it rebuilds the Document';
+      formatActions.hidden = true;
+      refreshTools();
+      if (sourceMode) source.focus({ preventScroll: true });
+      else editor.commands.focus();
+    });
     source.addEventListener('input', () => {
-      if (source.value !== formatSource) { editedHTML = null; formats = []; sourceFromEditor = false; }
-      clearTimeout(renderTimer); renderTimer = setTimeout(render, 80);
-      clearTimeout(sessionTimer); sessionTimer = setTimeout(keepDocumentInTab, 200);
+      clearTimeout(sourceTimer);
+      sourceTimer = setTimeout(() => { if (source.value !== sourceSnapshot) setFromSource(); }, 80);
     });
     source.addEventListener('paste', event => {
       const plain = event.clipboardData?.getData('text/plain') || '';
       const html = event.clipboardData?.getData('text/html') || '';
       if (!plain && !html) return;
       event.preventDefault();
-      insertValue(plain, html);
-    });
-    document.addEventListener('paste', event => {
-      if (sourceMode || event.target === source) return;
-      const plain = event.clipboardData?.getData('text/plain') || '';
-      const html = event.clipboardData?.getData('text/html') || '';
-      if (!plain && !html) return;
-      event.preventDefault();
-      insertValue(plain, html);
-    });
-    content.addEventListener('drop', event => { event.preventDefault(); showToast('Use Paste to add text to Document'); });
-    sourceToggle.addEventListener('click', () => setSourceMode(!sourceMode));
-    const regenerateDialog = document.getElementById('regenerate-dialog');
-    document.getElementById('regenerate').addEventListener('click', () => {
-      if (!source.value.trim()) return;
-      if (formats.length || editedHTML !== null) regenerateDialog.showModal();
-      else { render(); showToast('Document regenerated from source'); }
-    });
-    document.getElementById('regenerate-cancel').addEventListener('click', () => regenerateDialog.close());
-    document.getElementById('regenerate-confirm').addEventListener('click', () => {
-      regenerateDialog.close(); formats = []; editedHTML = null; render(); keepDocumentInTab(); showToast('Document regenerated from source');
+      const value = richSource(html) || plain;
+      if (source.value.length - (source.selectionEnd - source.selectionStart) + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return; }
+      source.setRangeText(value, source.selectionStart, source.selectionEnd, 'end');
+      setFromSource();
     });
     pasteButton.addEventListener('click', async () => {
       try {
@@ -643,39 +658,38 @@
           }
         } else if (navigator.clipboard?.readText) plain = await navigator.clipboard.readText();
         else { showToast('Press Ctrl/Cmd+V to paste'); return; }
-        if (!insertValue(plain, html)) showToast(plain || html ? 'Document limit: 100,000 characters' : 'Clipboard is empty');
+        if (!insertText(plain, html)) showToast(plain || html ? 'Document limit: 100,000 characters' : 'Clipboard is empty');
       } catch (error) { showToast(error.message === 'size' ? 'Clipboard content is too large' : 'Press Ctrl/Cmd+V to paste'); }
     });
-    const returnDialog = document.getElementById('return-dialog');
-    const clearDialog = document.getElementById('clear-dialog');
-    document.getElementById('editor-link').addEventListener('click', event => {
+    const returnDialog = byId('return-dialog'), clearDialog = byId('clear-dialog'), regenerateDialog = byId('regenerate-dialog');
+    byId('editor-link').addEventListener('click', event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        if (source.value) { event.preventDefault(); showToast('Use a normal click to keep Document'); }
+        if (!editor.isEmpty) { event.preventDefault(); showToast('Use a normal click to keep Document'); }
         return;
       }
-      if (!source.value) return;
+      if (editor.isEmpty) return;
       event.preventDefault();
-      if (!keepDocumentInTab()) { showToast('Could not keep Document in this tab'); return; }
+      if (!saveDocument()) return;
       returnDialog.showModal();
     });
-    document.getElementById('return-cancel').addEventListener('click', () => returnDialog.close());
-    document.getElementById('return-confirm').addEventListener('click', () => { returnDialog.close(); location.assign('/editor'); });
+    byId('return-cancel').addEventListener('click', () => returnDialog.close());
+    byId('return-confirm').addEventListener('click', () => { returnDialog.close(); location.assign('/editor'); });
     clearButton.addEventListener('click', () => clearDialog.showModal());
-    document.getElementById('clear-cancel').addEventListener('click', () => clearDialog.close());
-    document.getElementById('clear-confirm').addEventListener('click', () => {
-      clearDialog.close();
-      source.value = '';
-      editedHTML = null; formats = []; sourceFromEditor = false;
-      render();
-      keepDocumentInTab();
-      setSourceMode(false);
-      showToast('Document cleared');
+    byId('clear-cancel').addEventListener('click', () => clearDialog.close());
+    byId('clear-confirm').addEventListener('click', () => {
+      clearDialog.close(); source.value = ''; sourceSnapshot = ''; dirty = false; sourceFromEditor = true;
+      editor.commands.clearContent(); refreshStatus(); saveDocument(); showToast('Document cleared');
     });
+    byId('regenerate').addEventListener('click', () => {
+      if (!source.value.trim()) return;
+      if (dirty) regenerateDialog.showModal();
+      else { setFromSource(); showToast('Document regenerated from source'); }
+    });
+    byId('regenerate-cancel').addEventListener('click', () => regenerateDialog.close());
+    byId('regenerate-confirm').addEventListener('click', () => { regenerateDialog.close(); setFromSource(); showToast('Document regenerated from source'); });
     copyButton.addEventListener('click', async () => {
-      if (sourceMode && source.value !== formatSource) render();
-      if (!source.value.trim() && !content.textContent.trim()) return;
-      const plain = editedHTML === null ? source.value : content.innerText;
-      const html = `<html><head><meta charset="utf-8"></head><body>${safeExportHTML()}</body></html>`;
+      if (editor.isEmpty) return;
+      const plain = documentText(), html = exportHTML();
       try {
         if (navigator.clipboard?.write && window.ClipboardItem) {
           await navigator.clipboard.write([new ClipboardItem({
@@ -689,28 +703,8 @@
       clearTimeout(copyTimer);
       copyTimer = setTimeout(() => { copyButton.textContent = 'COPY'; copyButton.classList.remove('copied'); refreshStatus(); }, 2600);
     });
-    try {
-      const transferred = sessionStorage.getItem(transferKey);
-      const previous = sessionStorage.getItem(documentSessionKey);
-      if (transferred !== null) {
-        sessionStorage.removeItem(transferKey);
-        if (transferred.length <= MAX_SOURCE) source.value = transferred;
-        else showToast('Document limit: 100,000 characters');
-      } else if (previous !== null && previous.length <= MAX_SOURCE) source.value = previous;
-      const savedFormats = transferred === null ? JSON.parse(sessionStorage.getItem(documentFormatKey) || 'null') : null;
-      if (savedFormats?.source === source.value && Array.isArray(savedFormats.formats) && savedFormats.formats.length <= 1000) {
-        formats = savedFormats.formats.filter(item => ['strong', 'em', 'u'].includes(item.tag) && Number.isSafeInteger(item.start) && Number.isSafeInteger(item.end) && item.start >= 0 && item.end <= 200000);
-      }
-      const savedEdit = transferred === null ? JSON.parse(sessionStorage.getItem(documentEditKey) || 'null') : null;
-      if (savedEdit?.source === source.value && typeof savedEdit.html === 'string' && savedEdit.html.length <= 2000000) {
-        editedHTML = savedEdit.html;
-        sourceFromEditor = savedEdit.sourceFromEditor === true;
-      }
-      formatSource = source.value;
-    } catch { /* The document remains usable when browser storage is unavailable. */ }
-    render();
-    keepDocumentInTab();
-    window.addEventListener('pagehide', keepDocumentInTab);
+    window.addEventListener('pagehide', saveDocument);
+    window.documentAppReady = true;
   </script>
 </body>
 </html>

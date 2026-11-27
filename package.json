@@ -1,0 +1,32 @@
+{
+  "name": "plain-text-cleaner",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local Clean Text and Document tools",
+  "scripts": {
+    "bundle": "node scripts/bundle-document.cjs && node scripts/build.cjs",
+    "test": "node tests/browser-check.cjs && node tests/security-check.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MySimpleSmart/plain-text-cleaner.git"
+  },
+  "author": "SimpleSmart",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MySimpleSmart/plain-text-cleaner/issues"
+  },
+  "homepage": "https://github.com/MySimpleSmart/plain-text-cleaner#readme",
+  "dependencies": {
+    "@tiptap/core": "3.35.0",
+    "@tiptap/extension-list": "3.35.0",
+    "@tiptap/extension-mathematics": "3.35.0",
+    "@tiptap/extension-table": "3.35.0",
+    "@tiptap/pm": "3.35.0",
+    "@tiptap/starter-kit": "3.35.0",
+    "katex": "0.18.10"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

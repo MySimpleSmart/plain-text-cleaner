@@ -1,2 +1,7 @@
 tests/
 scripts/
+node_modules/
+src/
+package.json
+package-lock.json
+assets/document-engine.css
