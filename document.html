@@ -25,13 +25,19 @@
     .toolbar { position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; z-index: 3; width: max-content; max-width: calc(100% - 32px); padding: 8px; transform: translateX(-50%); border: 1px solid #e7e7e5; border-radius: 8px; background: #ffffffed; box-shadow: 0 4px 20px #0b20270d, 0 1px 4px #0b202708; backdrop-filter: blur(16px); }
     .actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
     .copy { min-height: 38px; padding: 8px 18px; border-radius: 5px; background: #0b2027; color: #fff; font-size: 12px; font-weight: 700; transition: background-color .2s ease; }
+    .copy:hover:not(:disabled) { background: #163641; }
     .copy.copied { background: #17804a; opacity: 1; }
     .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 5px; background: transparent; color: #323944; }
     .icon-button:hover:not(:disabled) { background: #f1f1ef; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .format-actions { position: absolute; z-index: 4; display: flex; gap: 4px; padding: 6px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .format-actions .icon-button { font-size: 15px; font-weight: 700; }
+    .format-actions .italic { font-style: italic; }
+    .format-actions .underline { text-decoration: underline; }
+    .format-actions[hidden] { display: none; }
     main { padding: 32px 48px 180px; }
-    .paper { max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
+    .paper { position: relative; max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
     .document-content, textarea { font-size: 16px; line-height: 1.75; }
     .document-content:focus, textarea:focus { outline: none; }
     textarea { display: block; width: 100%; min-height: max(320px, calc(100svh - 340px)); padding: 0; resize: none; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre-wrap; tab-size: 1; }
@@ -65,8 +71,11 @@
     .confirm-dialog p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
     .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .confirm-actions button { min-height: 38px; padding: 8px 12px; border: 1px solid #d5d9df; border-radius: 5px; background: #fff; color: #0b2027; font-size: 12px; font-weight: 700; }
+    .confirm-actions button:hover:not(:disabled) { border-color: #aeb8b9; background: #f1f3f2; }
     .confirm-actions button.confirm { border-color: #0b2027; background: #0b2027; color: #fff; }
+    .confirm-actions button.confirm:hover:not(:disabled) { border-color: #163641; background: #163641; color: #fff; }
     .confirm-actions button.danger { border-color: #a22f2f; background: #a22f2f; color: #fff; }
+    .confirm-actions button.danger:hover:not(:disabled) { border-color: #862626; background: #862626; color: #fff; }
     @media (max-width: 1279px) { .statusbar { position: static; max-width: 760px; margin: 12px auto 0; } }
     @media (max-width: 600px) { .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); } .actions { gap: 4px; } main { padding: 72px 24px 180px; } .paper, .document-content, textarea { min-height: 50svh; } }
     @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
@@ -79,11 +88,17 @@
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
     <button id="source-toggle" class="icon-button" aria-label="Show source" title="Show source" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
+    <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
   </div></section>
   <main>
     <div class="paper" id="paper">
       <div id="content" class="document-content" tabindex="0" aria-label="Document. Paste here or open Source to type."><p class="empty">Paste text here, or open Source to type…</p></div>
+      <div id="format-actions" class="format-actions" role="group" aria-label="Style selected document text" hidden>
+        <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold">B</button>
+        <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic">I</button>
+        <button id="format-underline" class="icon-button underline" type="button" aria-label="Underline selected text" title="Underline">U</button>
+      </div>
       <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
     </div>
     <div class="statusbar"><p class="status" id="document-status" role="status" aria-live="polite">Ready</p><p class="status" id="source-status">Nothing pasted yet</p></div>
@@ -99,6 +114,11 @@
     <p>This will remove the Document content from this tab.</p>
     <div class="confirm-actions"><button id="clear-cancel" type="button">CANCEL</button><button id="clear-confirm" class="danger" type="button">CLEAR</button></div>
   </dialog>
+  <dialog id="regenerate-dialog" class="confirm-dialog" aria-labelledby="regenerate-title">
+    <h2 id="regenerate-title">Regenerate Document?</h2>
+    <p>This will rebuild the Document from its source and remove manual bold, italic and underline styling.</p>
+    <div class="confirm-actions"><button id="regenerate-cancel" type="button">CANCEL</button><button id="regenerate-confirm" class="confirm" type="button">REGENERATE</button></div>
+  </dialog>
   <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
   <script id="document-app">
     const source = document.getElementById('source');
@@ -112,6 +132,7 @@
     const MAX_SOURCE = 100000;
     const transferKey = 'plain-text-cleaner.document-transfer.v1';
     const documentSessionKey = 'plain-text-cleaner.document-session.v1';
+    const documentFormatKey = 'plain-text-cleaner.document-formats.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
     let blocks = [];
@@ -120,6 +141,10 @@
     let toastTimer;
     let sessionTimer;
     let sourceMode = false;
+    let formats = [];
+    let formatSource = '';
+    let selectedRange = null;
+    const formatActions = document.getElementById('format-actions');
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
     const tidy = value => value.replace(/\r\n?/g, '\n').replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ').replace(/[ \t]+/gu, ' ').trim();
@@ -328,6 +353,7 @@
 
     function render() {
       clearTimeout(renderTimer);
+      if (formatSource !== source.value) { formats = []; formatSource = source.value; }
       blocks = parseDocument(source.value);
       content.replaceChildren();
       if (!blocks.length) {
@@ -356,13 +382,72 @@
         else renderInline(block.text, element);
         content.append(element);
       }
+      for (const format of formats) applyFormatRange(format);
+      selectedRange = null;
+      formatActions.hidden = true;
       document.getElementById('source-status').textContent = source.value ? `${source.value.length.toLocaleString()} characters` : 'Nothing pasted yet';
       const tables = blocks.filter(block => block.type === 'table').length;
       const lists = blocks.filter(block => block.type === 'list').length;
       const formulas = blocks.filter(block => block.type === 'formula').length;
       status.textContent = source.value ? `${blocks.length} blocks · ${tables} tables · ${lists} lists · ${formulas} formulas` : 'Ready';
       clearButton.disabled = !source.value;
+      document.getElementById('regenerate').disabled = !source.value.trim();
       copyButton.disabled = !source.value.trim() || copyButton.classList.contains('copied');
+    }
+
+    function applyFormatRange({ start, end, tag }) {
+      if (!['strong', 'em', 'u'].includes(tag) || start < 0 || end <= start || end > content.textContent.length) return;
+      const nodes = [];
+      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+      let node, offset = 0;
+      while ((node = walker.nextNode())) {
+        const nodeStart = offset;
+        offset += node.length;
+        if (node.parentElement.closest('.formula') || offset <= start || nodeStart >= end) continue;
+        nodes.push({ node, from: Math.max(0, start - nodeStart), to: Math.min(node.length, end - nodeStart) });
+      }
+      for (const part of nodes) {
+        let target = part.node;
+        if (part.from) target = target.splitText(part.from);
+        if (part.to - part.from < target.length) target.splitText(part.to - part.from);
+        const mark = document.createElement(tag);
+        target.parentNode.replaceChild(mark, target);
+        mark.append(target);
+      }
+    }
+
+    function updateFormatControls() {
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const valid = !sourceMode && range && !range.collapsed && content.contains(range.commonAncestorContainer) &&
+        !range.startContainer.parentElement?.closest('.formula') && !range.endContainer.parentElement?.closest('.formula');
+      formatActions.hidden = !valid;
+      selectedRange = valid ? range.cloneRange() : null;
+      if (!valid) return;
+      const rect = range.getBoundingClientRect();
+      const paperRect = document.getElementById('paper').getBoundingClientRect();
+      formatActions.style.left = `${Math.max(0, Math.min(rect.left - paperRect.left, paperRect.width - formatActions.offsetWidth))}px`;
+      const toolbarTop = document.querySelector('.toolbar').getBoundingClientRect().top;
+      const below = rect.bottom + formatActions.offsetHeight + 8;
+      formatActions.style.top = `${(below > toolbarTop - 8 && rect.top > formatActions.offsetHeight + 8 ? rect.top - formatActions.offsetHeight - 8 : rect.bottom + 8) - paperRect.top}px`;
+    }
+
+    document.addEventListener('selectionchange', updateFormatControls);
+    formatActions.addEventListener('pointerdown', event => { if (event.target.closest('button')) event.preventDefault(); });
+    for (const [id, tag] of [['format-bold', 'strong'], ['format-italic', 'em'], ['format-underline', 'u']]) {
+      document.getElementById(id).addEventListener('click', () => {
+        if (!selectedRange || sourceMode) return;
+        const before = selectedRange.cloneRange();
+        before.selectNodeContents(content);
+        before.setEnd(selectedRange.startContainer, selectedRange.startOffset);
+        const start = before.toString().length;
+        const end = start + selectedRange.toString().length;
+        if (end <= start) return;
+        formats.push({ start, end, tag });
+        render();
+        keepDocumentInTab();
+        showToast(tag === 'strong' ? 'Bold applied' : tag === 'em' ? 'Italic applied' : 'Underline applied');
+      });
     }
 
     function showToast(text) {
@@ -376,12 +461,15 @@
       try {
         if (source.value) sessionStorage.setItem(documentSessionKey, source.value);
         else sessionStorage.removeItem(documentSessionKey);
+        if (source.value && formats.length) sessionStorage.setItem(documentFormatKey, JSON.stringify({ source: source.value, formats }));
+        else sessionStorage.removeItem(documentFormatKey);
         return true;
       } catch { return false; }
     }
 
     function setSourceMode(enabled) {
       sourceMode = enabled;
+      formatActions.hidden = true;
       source.hidden = !enabled;
       content.hidden = enabled;
       sourceToggle.setAttribute('aria-pressed', String(enabled));
@@ -421,6 +509,16 @@
       insertValue(plain, html);
     });
     sourceToggle.addEventListener('click', () => setSourceMode(!sourceMode));
+    const regenerateDialog = document.getElementById('regenerate-dialog');
+    document.getElementById('regenerate').addEventListener('click', () => {
+      if (!source.value.trim()) return;
+      if (formats.length) regenerateDialog.showModal();
+      else { render(); showToast('Document regenerated from source'); }
+    });
+    document.getElementById('regenerate-cancel').addEventListener('click', () => regenerateDialog.close());
+    document.getElementById('regenerate-confirm').addEventListener('click', () => {
+      regenerateDialog.close(); formats = []; render(); keepDocumentInTab(); showToast('Document regenerated from source');
+    });
     pasteButton.addEventListener('click', async () => {
       try {
         let plain = '', html = '';
@@ -485,6 +583,11 @@
         if (transferred.length <= MAX_SOURCE) source.value = transferred;
         else showToast('Document limit: 100,000 characters');
       } else if (previous !== null && previous.length <= MAX_SOURCE) source.value = previous;
+      const savedFormats = transferred === null ? JSON.parse(sessionStorage.getItem(documentFormatKey) || 'null') : null;
+      if (savedFormats?.source === source.value && Array.isArray(savedFormats.formats) && savedFormats.formats.length <= 1000) {
+        formats = savedFormats.formats.filter(item => ['strong', 'em', 'u'].includes(item.tag) && Number.isSafeInteger(item.start) && Number.isSafeInteger(item.end) && item.start >= 0 && item.end <= 200000);
+      }
+      formatSource = source.value;
     } catch { /* The document remains usable when browser storage is unavailable. */ }
     render();
     keepDocumentInTab();

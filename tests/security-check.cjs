@@ -213,11 +213,13 @@ async function main() {
     const conversion = await send('Runtime.evaluate', { expression: `(() => {
       const editor = document.getElementById('text');
       if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Header navigation lost Clean Text');
-      document.getElementById('convert-document').click();
+      if (document.getElementById('convert-document')) throw Error('Full-document conversion control still exists');
+      editor.focus(); editor.select(); editor.dispatchEvent(new Event('select'));
+      document.getElementById('convert-selection').click();
       if (!document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Convert confirmation missing');
       document.getElementById('convert-cancel').click();
       if (document.getElementById('convert-dialog').open || editor.value !== ${JSON.stringify(transferredText)}) throw Error('Cancel changed Clean Text');
-      document.getElementById('convert-document').click();
+      document.getElementById('convert-selection').click();
       return true;
     })()`, returnByValue: true }, sessionId);
     if (conversion.exceptionDetails) throw Error(conversion.exceptionDetails.exception?.description || JSON.stringify(conversion.exceptionDetails));
@@ -238,6 +240,30 @@ async function main() {
         const sourceToggle = document.getElementById('source-toggle');
         if (source.value !== ${JSON.stringify(transferredText)} || document.querySelectorAll('#content table tr').length !== 3 || !content.querySelector('p')?.textContent.includes('Hello world') || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Clean Text to Document table transfer failed');
         if (!source.hidden || content.hidden || document.querySelector('.source-pane') || getComputedStyle(document.querySelector('.toolbar')).position !== 'fixed') throw Error('Document should open as one page without source beside it');
+        const firstText = content.querySelector('p').firstChild;
+        const range = document.createRange(); range.setStart(firstText, 0); range.setEnd(firstText, 5);
+        const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+        if (document.getElementById('format-actions').hidden) throw Error('Document styling toolbar did not appear');
+        document.getElementById('format-bold').click();
+        if (content.querySelector('strong')?.textContent !== 'Hello') throw Error('Bold formatting failed');
+        const boldText = content.querySelector('strong').firstChild;
+        const italicRange = document.createRange(); italicRange.setStart(boldText, 0); italicRange.setEnd(boldText, 5);
+        selection.removeAllRanges(); selection.addRange(italicRange); document.dispatchEvent(new Event('selectionchange'));
+        document.getElementById('format-italic').click();
+        if (content.querySelector('strong em')?.textContent !== 'Hello') throw Error('Nested italic formatting failed');
+        const restText = content.querySelector('p').lastChild;
+        const underlineRange = document.createRange(); underlineRange.setStart(restText, 1); underlineRange.setEnd(restText, 6);
+        selection.removeAllRanges(); selection.addRange(underlineRange); document.dispatchEvent(new Event('selectionchange'));
+        document.getElementById('format-underline').click();
+        if (content.querySelector('p u')?.textContent !== 'world') throw Error('Underline formatting failed');
+        if (!sessionStorage.getItem('plain-text-cleaner.document-formats.v1')) throw Error('Document formatting was not saved');
+        document.getElementById('regenerate').click();
+        if (!document.getElementById('regenerate-dialog').open) throw Error('Regeneration did not warn about formatting loss');
+        document.getElementById('regenerate-cancel').click();
+        if (!content.querySelector('strong')) throw Error('Cancelling regeneration lost formatting');
+        document.getElementById('regenerate').click(); document.getElementById('regenerate-confirm').click();
+        if (content.querySelector('strong') || sessionStorage.getItem('plain-text-cleaner.document-formats.v1')) throw Error('Regeneration did not reset formatting');
         const directPaste = new DataTransfer(); directPaste.setData('text/plain', 'Added paragraph');
         content.focus(); content.dispatchEvent(new ClipboardEvent('paste', { clipboardData: directPaste, cancelable: true, bubbles: true }));
         if (!source.value.endsWith('Added paragraph') || !content.textContent.includes('Added paragraph')) throw Error('Pasting into document view failed: ' + JSON.stringify({ source: source.value, content: content.textContent }));
@@ -284,6 +310,12 @@ async function main() {
         if (window.evil || /onclick|onerror|script/i.test(document.getElementById('content').innerHTML) || !document.querySelector('#content table')) throw Error('Rich paste sanitization failed');
         const copied = document.getElementById('content').innerHTML;
         if (!copied.includes('<table>') || !copied.includes('<th>')) throw Error('Table not copyable as HTML');
+        const lastText = content.querySelector('th').firstChild;
+        const lastRange = document.createRange(); lastRange.setStart(lastText, 0); lastRange.setEnd(lastText, 4);
+        getSelection().removeAllRanges(); getSelection().addRange(lastRange);
+        document.dispatchEvent(new Event('selectionchange'));
+        document.getElementById('format-italic').click();
+        if (content.querySelector('th em')?.textContent !== 'Safe') throw Error('Italic formatting in table failed');
         if (document.documentElement.scrollWidth > innerWidth) throw Error('Document page overflows on mobile');
         if (window.cspViolations.length) throw Error('Document violated CSP: ' + JSON.stringify(window.cspViolations));
         return { status: 'PASS', violations: window.cspViolations, documentText: source.value };
@@ -296,6 +328,7 @@ async function main() {
     await documentReloaded;
     const restored = await send('Runtime.evaluate', { expression: `(() => {
       if (document.getElementById('source').value !== ${JSON.stringify(documentText)} || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Document was not restored on reload');
+      if (document.querySelector('#content th em')?.textContent !== 'Safe') throw Error('Document formatting was not restored on reload');
       document.getElementById('editor-link').click();
       if (!document.getElementById('return-dialog').open) throw Error('Return confirmation did not open');
       document.getElementById('return-cancel').click();
@@ -325,11 +358,13 @@ async function main() {
     const replaceChoice = await send('Runtime.evaluate', { expression: `(() => {
       const editor = document.getElementById('text');
       if (editor.value !== 'Replacement draft') throw Error('Clean Text changed while opening existing Document');
-      document.getElementById('convert-document').click();
+      editor.focus(); editor.setSelectionRange(12, 17); editor.dispatchEvent(new Event('select'));
+      document.getElementById('convert-selection').click();
       if (!document.getElementById('convert-dialog').open || !document.getElementById('convert-description').textContent.includes('replace')) throw Error('Replacement warning missing');
+      if (document.getElementById('convert-preview').textContent !== 'draft') throw Error('Selection preview is wrong');
       document.getElementById('convert-cancel').click();
       if (document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Cancel triggered conversion');
-      document.getElementById('convert-document').click();
+      document.getElementById('convert-selection').click();
       return true;
     })()`, returnByValue: true }, sessionId);
     if (replaceChoice.exceptionDetails) throw Error(replaceChoice.exceptionDetails.exception?.description || JSON.stringify(replaceChoice.exceptionDetails));
@@ -337,11 +372,11 @@ async function main() {
     await send('Runtime.evaluate', { expression: "document.getElementById('convert-confirm').click()", returnByValue: true }, sessionId);
     await replacedLoaded;
     const clearCheck = await send('Runtime.evaluate', { expression: `(() => {
-      if (document.getElementById('source').value !== 'Replacement draft') throw Error('Confirmed replacement did not arrive');
+      if (document.getElementById('source').value !== 'draft') throw Error('Confirmed selected text did not arrive');
       document.getElementById('clear').click();
       if (!document.getElementById('clear-dialog').open) throw Error('Clear confirmation missing');
       document.getElementById('clear-cancel').click();
-      if (document.getElementById('source').value !== 'Replacement draft') throw Error('Clear cancel lost content');
+      if (document.getElementById('source').value !== 'draft') throw Error('Clear cancel lost content');
       document.getElementById('clear').click(); document.getElementById('clear-confirm').click();
       if (document.getElementById('source').value || sessionStorage.getItem('plain-text-cleaner.document-session.v1') !== null) throw Error('Confirmed clear did not remove Document');
       return true;

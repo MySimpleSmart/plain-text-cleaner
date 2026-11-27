@@ -19,7 +19,7 @@
     .document-link { position: fixed; top: 17px; left: 52px; z-index: 1; padding: 4px 6px; border-radius: 4px; color: #526068; font-size: 11px; font-weight: 700; text-decoration: none; }
     .document-link:hover { background: #f1f1ef; color: var(--accent); }
     .document-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-    .case-actions { position: absolute; z-index: 3; display: flex; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
+    .case-actions { position: absolute; z-index: 3; display: flex; align-items: center; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
     .case-actions[hidden] { display: none; }
     .case-actions button { text-transform: none; font-weight: 600; }
     #case-title { font-size: 11px; }
@@ -70,13 +70,19 @@
     input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
     .toast { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 20px; z-index: 5; width: max-content; max-width: min(240px, calc(100% - 40px)); padding: 8px 12px; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; color: #37352f; font-size: 13px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; pointer-events: none; opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.98); transform-origin: top right; transition: opacity .24s ease, transform .24s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .24s; }
     .toast.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0s; }
-    .switch-dialog { width: min(420px, calc(100% - 32px)); padding: 20px; border: 1px solid #e7e7e5; border-radius: 8px; color: #37352f; background: #fff; box-shadow: 0 12px 32px #0b202729; }
+    .switch-dialog { width: min(440px, calc(100% - 32px)); padding: 24px; border: 1px solid #e7e7e5; border-radius: 12px; color: #37352f; background: #fff; box-shadow: 0 20px 60px #0b202733; }
     .switch-dialog::backdrop { background: #0b20274d; }
-    .switch-dialog h2 { margin: 0 0 8px; font-size: 17px; }
-    .switch-dialog p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+    .switch-dialog h2 { margin: 0 0 8px; color: var(--accent); font-size: 18px; }
+    .switch-dialog p { margin: 0 0 20px; color: #62615c; font-size: 14px; line-height: 1.55; }
     .switch-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .switch-dialog-actions button { min-width: 96px; font-weight: 600; transition: background-color .16s ease, border-color .16s ease, color .16s ease; }
+    .switch-dialog-actions button:not(.replace):not(.danger):hover:not(:disabled) { border-color: #aeb8b9; background: #f1f3f2; }
     .switch-dialog-actions .replace { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .switch-dialog-actions button.replace:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
     .switch-dialog-actions .danger { background: #a22f2f; color: #fff; border-color: #a22f2f; }
+    .switch-dialog-actions button.danger:hover:not(:disabled) { background: #862626; border-color: #862626; color: #fff; }
+    .convert-preview { max-height: 78px; overflow: hidden; margin: -6px 0 20px; padding: 10px 12px; border-left: 2px solid #d6dddd; border-radius: 0 5px 5px 0; background: #f7f8f7; color: #555a58; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .case-divider { width: 1px; height: 22px; margin: 0 2px; background: #e7e7e5; }
     @media (min-width: 1100px) { .toast { max-width: min(240px, calc((100% - var(--document-width, 760px)) / 2 - 32px)); } }
     @media (prefers-reduced-motion: reduce) { .toast { transition: none; transform: none; } }
     main { padding: 32px 48px 180px; }
@@ -152,9 +158,6 @@
       </button>
       <button id="open-file" class="icon-button" aria-label="Open TXT, CSV or TSV file" title="Open TXT, CSV or TSV file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2L1 9a2 2 0 0 1 2-2z"/></svg>
-      </button>
-      <button id="convert-document" class="icon-button" disabled aria-label="Convert text to Document" title="Convert text to Document">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h9l4 4v12H3zM12 4v4h4M7 12h5M7 16h5M16 15h5m-2-2 2 2-2 2"/></svg>
       </button>
       <input id="file-input" class="sr-only" type="file" accept=".txt,.csv,.tsv,text/plain,text/csv,text/tab-separated-values" tabindex="-1" aria-hidden="true">
       <button id="download" class="icon-button" disabled aria-label="Download TXT" title="Download TXT">
@@ -252,11 +255,13 @@
       <div id="search-highlights" class="search-highlights" aria-hidden="true" hidden></div>
       <textarea id="text" aria-label="Document text" aria-describedby="editor-help" placeholder="Paste or type text here…" maxlength="500000" spellcheck="false" autofocus></textarea>
       <div id="empty-hint" class="empty-hint" aria-hidden="true" hidden>Paste or type text here…</div>
-      <div id="case-actions" class="case-actions" role="group" aria-label="Change selected text case" hidden>
+      <div id="case-actions" class="case-actions" role="group" aria-label="Selected text actions" hidden>
         <button id="case-upper" class="icon-button" aria-label="UPPERCASE selected text" title="UPPERCASE" disabled><span aria-hidden="true">AA</span></button>
         <button id="case-lower" class="icon-button" aria-label="Lowercase selected text" title="lowercase" disabled><span aria-hidden="true">aa</span></button>
         <button id="case-default" class="icon-button" aria-label="Default — sentence case" title="Default — sentence case" disabled><span aria-hidden="true">Aa</span></button>
         <button id="case-title" class="icon-button" aria-label="Capitalize each word in selected text" title="Title Case — capitalize each word" disabled><span aria-hidden="true">A·A</span></button>
+        <span class="case-divider" aria-hidden="true"></span>
+        <button id="convert-selection" class="icon-button" aria-label="Convert selected text to Document" title="Convert selection to Document" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h9l4 4v12H3zM12 4v4h4M7 12h5M7 16h5M16 15h5m-2-2 2 2-2 2"/></svg></button>
       </div>
       <section id="split-panel" class="split-panel" aria-label="Review separated words" hidden>
         <div class="split-panel-header">
@@ -279,9 +284,10 @@
     </div>
   </main>
   <div id="message" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-  <dialog id="convert-dialog" class="switch-dialog" aria-labelledby="convert-title">
-    <h2 id="convert-title">Convert to Document?</h2>
-    <p id="convert-description">Your cleaned text will open as a structured Document.</p>
+  <dialog id="convert-dialog" class="switch-dialog" aria-labelledby="convert-title" tabindex="-1">
+    <h2 id="convert-title">Convert selection?</h2>
+    <p id="convert-description">Only the selected text will become a Document. Your Clean Text stays available.</p>
+    <div id="convert-preview" class="convert-preview" aria-label="Selected text preview"></div>
     <div class="switch-dialog-actions">
       <button id="convert-cancel" type="button">CANCEL</button>
       <button id="convert-confirm" class="replace" type="button">CONVERT</button>
@@ -1143,7 +1149,6 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const visibleText = hasVisibleText(input.value);
       emptyHint.hidden = visibleText || !input.value;
       byId('clear').disabled = !hasText;
-      byId('convert-document').disabled = !visibleText;
       for (const id of ['download', 'print']) byId(id).disabled = !visibleText;
       if (!visibleText) { copyRequest++; resetCopyButton(); }
       else if (copyButton.classList.contains('copied') && input.value !== copiedValue) resetCopyButton();
@@ -1174,6 +1179,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const selected = available ? input.value.slice(start, end) : '';
       byId('case-default').disabled = !available || selected === sentenceCase(selected);
       byId('case-title').disabled = !available || selected === titleCase(selected);
+      byId('convert-selection').disabled = !available || !hasVisibleText(selected) || selected.length > 100000;
       if (!actions.hidden) {
         placeToolBelowText(actions, end);
         if (wasHidden) revealTool(actions);
@@ -2377,11 +2383,12 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       } catch { return false; }
     }
 
+    let pendingConversion = '';
     function openDocument(replace) {
-      if (replace && input.value.length > 100000) { showMessage('Document limit: 100,000 characters'); return; }
+      if (replace && (!pendingConversion || pendingConversion.length > 100000)) { showMessage('Select up to 100,000 characters'); return; }
       if (!saveEditorSession()) { showMessage('Could not keep Clean Text in this tab'); return; }
       try {
-        if (replace && input.value) sessionStorage.setItem(documentTransferKey, input.value);
+        if (replace) sessionStorage.setItem(documentTransferKey, pendingConversion);
         else sessionStorage.removeItem(documentTransferKey);
       } catch { showMessage('Could not transfer text in this browser'); return; }
       if (convertDialog.open) convertDialog.close();
@@ -2391,16 +2398,20 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const convertDialog = byId('convert-dialog');
     byId('convert-cancel').addEventListener('click', () => convertDialog.close());
     byId('convert-confirm').addEventListener('click', () => openDocument(true));
-    byId('convert-document').addEventListener('click', () => {
-      if (!hasVisibleText(input.value)) return;
-      if (input.value.length > 100000) { showMessage('Document limit: 100,000 characters'); return; }
+    byId('convert-selection').addEventListener('click', () => {
+      const selection = input.value.slice(input.selectionStart, input.selectionEnd);
+      if (!hasVisibleText(selection)) return;
+      if (selection.length > 100000) { showMessage('Select up to 100,000 characters'); return; }
       let existing;
       try { existing = sessionStorage.getItem(documentSessionKey); }
       catch { showMessage('Could not read Document in this browser'); return; }
+      pendingConversion = selection;
       byId('convert-description').textContent = existing
-        ? 'This will replace your current Document with the cleaned text. Your Clean Text stays available.'
-        : 'Your cleaned text will open as a structured Document. Your Clean Text stays available.';
+        ? 'This selection will replace your current Document. Your Clean Text stays available.'
+        : 'Only this selection will become a Document. Your Clean Text stays available.';
+      byId('convert-preview').textContent = selection.length > 180 ? selection.slice(0, 180) + '…' : selection;
       convertDialog.showModal();
+      convertDialog.focus({ preventScroll: true });
     });
     byId('document-link').addEventListener('click', event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
