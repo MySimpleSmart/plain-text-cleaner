@@ -97,7 +97,7 @@ async function main() {
   try {
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width: Number(process.env.TEST_WIDTH) || 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
     await send('Page.enable', {}, sessionId);
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.cspViolations=[]; document.addEventListener('securitypolicyviolation', event => window.cspViolations.push({ directive: event.violatedDirective, sample: event.sample, target: event.target?.outerHTML?.slice(0, 200), blocked: event.blockedURI, source: event.sourceFile, line: event.lineNumber }));` }, sessionId);
     const loaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
@@ -263,6 +263,15 @@ async function main() {
       const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
       fs.writeFileSync(process.env.SELECTION_SCREENSHOT, Buffer.from(data, 'base64'));
     }
+    if (process.env.TABLE_SCREENSHOT) {
+      await send('Runtime.evaluate', { expression: `new Promise(resolve => {
+        const cell = document.querySelector('#content table td p');
+        editor.chain().focus().setTextSelection(editor.view.posAtDOM(cell, 0)).run();
+        setTimeout(() => { refreshTools(); resolve(true); }, 60);
+      })`, awaitPromise: true, returnByValue: true }, sessionId);
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+      fs.writeFileSync(process.env.TABLE_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
     const documentResult = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/document' || !window.documentAppReady || !window.createDocumentEditor) throw Error('Document engine did not load');
@@ -273,6 +282,51 @@ async function main() {
         if (source.value !== ${JSON.stringify(transferredText)} || content.querySelectorAll('table tr').length !== 3 || !content.textContent.includes('Hello world')) throw Error('Clean Text transfer or table parsing failed');
         if (!documentText().includes('Variable' + String.fromCharCode(9) + 'CV' + String.fromCharCode(10) + 'x1' + String.fromCharCode(9) + '0.0742')) throw Error('Plain text table copy lost row boundaries: ' + JSON.stringify(documentText()));
         if (!source.hidden || content.hidden || !content.querySelector('.ProseMirror')) throw Error('Document did not open as an editable page');
+        editor.chain().focus().setTextSelection(1).run();
+        document.getElementById('insert-table').click();
+        if (!document.getElementById('insert-table-dialog').open) throw Error('Insert table dialog did not open');
+        document.getElementById('table-rows').value = '999';
+        document.getElementById('insert-table-confirm').click();
+        if (!document.getElementById('insert-table-dialog').open || content.querySelectorAll('table').length !== 1) throw Error('Oversized table insertion was accepted');
+        document.getElementById('table-rows').value = '2';
+        document.getElementById('table-columns').value = '3';
+        document.getElementById('insert-table-confirm').click();
+        const newTable = [...content.querySelectorAll('table')].find(table => table.rows.length === 2 && table.rows[0].cells.length === 3);
+        if (!newTable || document.getElementById('insert-table-dialog').open) throw Error('Configured table was not inserted');
+        const firstCell = newTable.querySelector('td');
+        editor.chain().focus().setTextSelection(editor.view.posAtDOM(firstCell.querySelector('p'), 0)).insertContent('Edited').run();
+        await new Promise(resolve => setTimeout(resolve, 30));
+        refreshTools();
+        if (firstCell.textContent !== 'Edited' || document.getElementById('table-actions').hidden || !document.getElementById('text-actions').hidden) throw Error('New table cell was not editable or its toolbar was hidden: ' + JSON.stringify({ cell: firstCell.textContent, actual: content.querySelector('table td')?.textContent, tableHidden: document.getElementById('table-actions').hidden, textHidden: document.getElementById('text-actions').hidden, selection: editor.state.selection.toJSON(), active: document.activeElement?.outerHTML?.slice(0, 100) }));
+        const tableToolbarBox = document.getElementById('format-actions').getBoundingClientRect();
+        if (tableToolbarBox.left < 0 || tableToolbarBox.right > innerWidth) throw Error('Table actions overflow the viewport');
+        document.getElementById('row-after').click();
+        if (newTable.rows.length !== 3) throw Error('Add row below failed');
+        document.getElementById('column-after').click();
+        if (newTable.rows[0].cells.length !== 4) throw Error('Add column right failed');
+        document.getElementById('row-delete').click();
+        if (newTable.rows.length !== 2) throw Error('Delete row failed');
+        document.getElementById('column-delete').click();
+        if (newTable.rows[0].cells.length !== 3) throw Error('Delete column failed');
+        document.getElementById('row-before').click();
+        if (newTable.rows.length !== 3) throw Error('Add row above failed');
+        document.getElementById('row-delete').click();
+        document.getElementById('column-before').click();
+        if (newTable.rows[0].cells.length !== 4) throw Error('Add column left failed');
+        document.getElementById('column-delete').click();
+        document.getElementById('header-row').click();
+        if (!newTable.querySelector('th')) throw Error('Header row toggle failed');
+        document.getElementById('table-delete').click();
+        if (!document.getElementById('delete-table-dialog').open) throw Error('Delete table confirmation missing');
+        document.getElementById('delete-table-cancel').click();
+        if (content.querySelectorAll('table').length !== 2) throw Error('Cancel deleted the table');
+        document.getElementById('table-delete').click(); document.getElementById('delete-table-confirm').click();
+        if (content.querySelectorAll('table').length !== 1) throw Error('Confirmed table deletion failed');
+        editor.commands.undo();
+        if (content.querySelectorAll('table').length !== 2) throw Error('Deleted table could not be restored with Undo');
+        editor.commands.redo();
+        if (content.querySelectorAll('table').length !== 1 || source.value !== ${JSON.stringify(transferredText)}) throw Error('Table editing changed the original source or Redo failed');
+        setFromSource();
         editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run();
         await new Promise(resolve => setTimeout(resolve, 30)); refreshTools();
         if (document.getElementById('format-actions').hidden || !document.querySelector('#format-actions #list-bullet') || document.querySelector('.toolbar #format-bold, .toolbar #list-bullet')) throw Error('Selection toolbar did not contain all formatting actions');

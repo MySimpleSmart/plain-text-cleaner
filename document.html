@@ -13,7 +13,7 @@
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; }
     [hidden] { display: none !important; }
-    button, textarea { font: inherit; }
+    button, input, textarea { font: inherit; }
     button { border: 0; cursor: pointer; }
     button:focus-visible, a:focus-visible { outline: 2px solid #0b2027; outline-offset: 3px; }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -30,8 +30,13 @@
     .icon-button:hover:not(:disabled) { background: #f1f1ef; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .format-actions { position: absolute; left: 0; top: 0; z-index: 4; display: flex; align-items: center; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .format-actions { position: absolute; left: 0; top: 0; z-index: 4; display: flex; flex-direction: column; gap: 4px; max-width: calc(100vw - 48px); padding: 6px; scroll-margin-bottom: 100px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .format-actions .action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
     .format-actions .icon-button { font-size: 15px; font-weight: 700; }
+    .format-actions .table-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .format-actions .table-group { display: flex; align-items: center; gap: 4px; }
+    .format-actions .table-group-label { width: 38px; color: #616975; font-size: 10px; font-weight: 700; }
+    .format-actions .table-actions .icon-button { width: 34px; height: 34px; font-size: 13px; white-space: nowrap; }
     .format-actions .italic { font-style: italic; }
     .format-actions .underline { text-decoration: underline; }
     .format-actions[hidden] { display: none; }
@@ -88,6 +93,10 @@
     .confirm-actions button.confirm:hover:not(:disabled) { border-color: #163641; background: #163641; color: #fff; }
     .confirm-actions button.danger { border-color: #a22f2f; background: #a22f2f; color: #fff; }
     .confirm-actions button.danger:hover:not(:disabled) { border-color: #862626; background: #862626; color: #fff; }
+    .table-fields { display: flex; gap: 12px; margin: 0 0 18px; }
+    .table-fields label { flex: 1; color: #526068; font-size: 12px; font-weight: 700; }
+    .table-fields input { display: block; width: 100%; height: 38px; margin-top: 6px; padding: 6px 10px; border: 1px solid #d5d9df; border-radius: 5px; color: #37352f; background: #fff; }
+    .table-fields input:focus-visible { outline: 2px solid #0b2027; outline-offset: 2px; }
     @media (max-width: 1279px) { .statusbar { position: static; max-width: 760px; margin: 12px auto 0; } }
     @media (max-width: 600px) { .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); } .actions { gap: 4px; } main { padding: 72px 24px 180px; } .paper, .document-content, textarea { min-height: 50svh; } }
     @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
@@ -101,6 +110,7 @@
   <section class="toolbar" aria-label="Document controls"><div class="actions">
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
+    <button id="insert-table" class="icon-button" type="button" aria-label="Insert table" title="Insert table"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="16" height="16" rx="1"/><path d="M2 8h16M2 13h16M8 3v16M13 3v16M18 17v6m-3-3h6"/></svg></button>
     <button id="source-toggle" class="icon-button" aria-label="Show original source" title="Show original source · editing it rebuilds the Document" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
     <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
@@ -108,7 +118,8 @@
   <main>
     <div class="paper" id="paper">
       <div id="content" class="document-content" aria-label="Document editor"></div>
-      <div id="format-actions" class="format-actions" role="group" aria-label="Selected document text actions" hidden>
+      <div id="format-actions" class="format-actions" role="group" aria-label="Document editing actions" hidden>
+        <div id="text-actions" class="action-row" role="group" aria-label="Selected text formatting" hidden>
         <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold (Ctrl/Cmd+B)" aria-pressed="false">B</button>
         <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic (Ctrl/Cmd+I)" aria-pressed="false">I</button>
         <button id="format-underline" class="icon-button underline" type="button" aria-label="Underline selected text" title="Underline (Ctrl/Cmd+U)" aria-pressed="false">U</button>
@@ -116,6 +127,23 @@
         <button id="list-bullet" class="icon-button" type="button" aria-label="Bullet list" title="Bullet list" aria-pressed="false">•</button>
         <button id="list-ordered" class="icon-button" type="button" aria-label="Numbered list" title="Numbered list" aria-pressed="false">1.</button>
         <button id="list-task" class="icon-button" type="button" aria-label="Checklist" title="Checklist" aria-pressed="false">☐</button>
+        </div>
+        <div id="table-actions" class="table-actions" role="group" aria-label="Table editing" hidden>
+          <div class="table-group" role="group" aria-label="Rows">
+            <span class="table-group-label" aria-hidden="true">ROW</span>
+            <button id="row-before" class="icon-button" type="button" aria-label="Add row above" title="Add row above">+↑</button>
+            <button id="row-after" class="icon-button" type="button" aria-label="Add row below" title="Add row below">+↓</button>
+            <button id="row-delete" class="icon-button" type="button" aria-label="Delete row" title="Delete row">−</button>
+            <button id="header-row" class="icon-button" type="button" aria-label="Toggle header row" title="Toggle header row" aria-pressed="false">H</button>
+            <button id="table-delete" class="icon-button" type="button" aria-label="Delete table" title="Delete table"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+          </div>
+          <div class="table-group" role="group" aria-label="Columns">
+            <span class="table-group-label" aria-hidden="true">COL</span>
+            <button id="column-before" class="icon-button" type="button" aria-label="Add column left" title="Add column left">+←</button>
+            <button id="column-after" class="icon-button" type="button" aria-label="Add column right" title="Add column right">+→</button>
+            <button id="column-delete" class="icon-button" type="button" aria-label="Delete column" title="Delete column">−</button>
+          </div>
+        </div>
       </div>
       <textarea id="source" aria-label="Original document source. Editing it rebuilds the Document." placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
     </div>
@@ -137,6 +165,20 @@
     <p>This will rebuild the Document from its source and remove direct edits and manual styling.</p>
     <div class="confirm-actions"><button id="regenerate-cancel" type="button">CANCEL</button><button id="regenerate-confirm" class="confirm" type="button">REGENERATE</button></div>
   </dialog>
+  <dialog id="insert-table-dialog" class="confirm-dialog" aria-labelledby="insert-table-title">
+    <h2 id="insert-table-title">Insert table</h2>
+    <p>Choose the number of rows and columns.</p>
+    <div class="table-fields">
+      <label for="table-rows">ROWS<input id="table-rows" type="number" min="2" max="20" value="2" required></label>
+      <label for="table-columns">COLUMNS<input id="table-columns" type="number" min="2" max="10" value="2" required></label>
+    </div>
+    <div class="confirm-actions"><button id="insert-table-cancel" type="button">CANCEL</button><button id="insert-table-confirm" class="confirm" type="button">INSERT</button></div>
+  </dialog>
+  <dialog id="delete-table-dialog" class="confirm-dialog" aria-labelledby="delete-table-title">
+    <h2 id="delete-table-title">Delete table?</h2>
+    <p>This removes the table and its contents. You can undo this action.</p>
+    <div class="confirm-actions"><button id="delete-table-cancel" type="button">CANCEL</button><button id="delete-table-confirm" class="danger" type="button">DELETE</button></div>
+  </dialog>
   <script src="/assets/document-engine.js" integrity="sha256-dgF/Y25w2LbqcLgS4Eb77qqHQlfL/gKotdQ3IYIiqW0=" crossorigin="anonymous"></script>
   <script id="document-app">
     const source = document.getElementById('source');
@@ -154,6 +196,8 @@
     const documentEditKey = 'plain-text-cleaner.document-edits.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
+    const MAX_EDIT_TABLE_ROWS = 100;
+    const MAX_EDIT_TABLE_COLUMNS = 20;
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
     const tidy = value => value.replace(/\r\n?/g, '\n').replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ').replace(/[ \t]+/gu, ' ').trim();
@@ -337,7 +381,12 @@
     let toastTimer;
     let sourceTimer;
     let sourceMode = false;
+    let insertPosition = 1;
+    let deleteTablePosition = 1;
     const formatActions = byId('format-actions');
+    const textActions = byId('text-actions');
+    const tableActions = byId('table-actions');
+    const insertTableButton = byId('insert-table');
     const formatActionsRule = Array.from(document.styleSheets[0].cssRules).find(rule => rule.selectorText === '.format-actions');
     const buttons = {
       bold: [byId('format-bold')],
@@ -469,6 +518,20 @@
       copyButton.disabled = editor.isEmpty || copyButton.classList.contains('copied');
     }
 
+    function tableContext() {
+      const { $from } = editor.state.selection;
+      for (let depth = $from.depth; depth > 0; depth--) {
+        const table = $from.node(depth);
+        if (table.type.name !== 'table') continue;
+        const rowIndex = $from.index(depth);
+        if (!table.childCount || rowIndex >= table.childCount) return null;
+        const row = table.child(rowIndex);
+        const columns = table.firstChild.content.content.reduce((total, cell) => total + (cell.attrs.colspan || 1), 0);
+        return { rows: table.childCount, columns, header: row.childCount > 0 && row.content.content.every(cell => cell.type.name === 'tableHeader') };
+      }
+      return null;
+    }
+
     function refreshTools() {
       for (const [type, group] of Object.entries(buttons)) {
         for (const button of group) {
@@ -479,10 +542,29 @@
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       const editorFocused = content.contains(document.activeElement) || formatActions.contains(document.activeElement);
-      const valid = !sourceMode && editorFocused && !editor.state.selection.empty && range && content.contains(range.commonAncestorContainer);
-      formatActions.hidden = !valid;
-      if (!valid) return;
-      const box = range.getBoundingClientRect(), paper = byId('paper').getBoundingClientRect();
+      const inEditor = !sourceMode && editorFocused && range && content.contains(range.commonAncestorContainer);
+      const selectedText = inEditor && !editor.state.selection.empty;
+      const currentTable = sourceMode ? null : tableContext();
+      const table = inEditor ? currentTable : null;
+      textActions.hidden = !selectedText;
+      tableActions.hidden = !table;
+      formatActions.hidden = !selectedText && !table;
+      insertTableButton.disabled = sourceMode || Boolean(currentTable);
+      if (table) {
+        for (const [id, enabled] of [
+          ['row-before', table.rows < MAX_EDIT_TABLE_ROWS && editor.can().addRowBefore()],
+          ['row-after', table.rows < MAX_EDIT_TABLE_ROWS && editor.can().addRowAfter()],
+          ['row-delete', table.rows > 1 && editor.can().deleteRow()],
+          ['column-before', table.columns < MAX_EDIT_TABLE_COLUMNS && editor.can().addColumnBefore()],
+          ['column-after', table.columns < MAX_EDIT_TABLE_COLUMNS && editor.can().addColumnAfter()],
+          ['column-delete', table.columns > 1 && editor.can().deleteColumn()],
+          ['header-row', editor.can().toggleHeaderRow()]
+        ]) byId(id).disabled = !enabled;
+        byId('header-row').setAttribute('aria-pressed', String(table.header));
+      }
+      if (formatActions.hidden) return;
+      const cell = table && !selectedText ? selection.anchorNode?.parentElement?.closest('td,th') : null;
+      const box = cell?.getBoundingClientRect() || range.getBoundingClientRect(), paper = byId('paper').getBoundingClientRect();
       formatActionsRule.style.left = `${Math.max(0, Math.min(box.left - paper.left, paper.width - formatActions.offsetWidth))}px`;
       const toolbarTop = document.querySelector('.toolbar').getBoundingClientRect().top;
       formatActionsRule.style.top = `${(box.bottom + formatActions.offsetHeight > toolbarTop - 8 && box.top > formatActions.offsetHeight + 8 ? box.top - formatActions.offsetHeight - 8 : box.bottom + 8) - paper.top}px`;
@@ -615,6 +697,51 @@
       button.addEventListener('pointerdown', event => event.preventDefault());
       button.addEventListener('click', () => { if (!sourceMode && !editor.state.selection.empty) toolCommands[type](); });
     }
+    const insertTableDialog = byId('insert-table-dialog');
+    insertTableButton.addEventListener('pointerdown', event => event.preventDefault());
+    insertTableButton.addEventListener('click', () => {
+      if (sourceMode || tableContext()) return;
+      insertPosition = editor.state.selection.to;
+      insertTableDialog.showModal();
+      byId('table-rows').focus();
+    });
+    byId('insert-table-cancel').addEventListener('click', () => insertTableDialog.close());
+    insertTableDialog.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target.matches('input')) { event.preventDefault(); byId('insert-table-confirm').click(); }
+    });
+    byId('insert-table-confirm').addEventListener('click', () => {
+      const rows = Number(byId('table-rows').value), cols = Number(byId('table-columns').value);
+      if (!Number.isInteger(rows) || rows < 2 || rows > 20 || !Number.isInteger(cols) || cols < 2 || cols > 10) {
+        showToast('Choose 2–20 rows and 2–10 columns'); return;
+      }
+      insertTableDialog.close();
+      if (!editor.chain().focus().setTextSelection(insertPosition).insertTable({ rows, cols, withHeaderRow: false }).run()) showToast('Could not insert table here');
+    });
+    const tableCommands = {
+      'row-before': 'addRowBefore', 'row-after': 'addRowAfter', 'row-delete': 'deleteRow',
+      'column-before': 'addColumnBefore', 'column-after': 'addColumnAfter', 'column-delete': 'deleteColumn',
+      'header-row': 'toggleHeaderRow'
+    };
+    for (const [id, command] of Object.entries(tableCommands)) {
+      const button = byId(id);
+      button.addEventListener('pointerdown', event => event.preventDefault());
+      button.addEventListener('click', () => {
+        if (sourceMode || button.disabled || !tableContext()) return;
+        editor.chain().focus()[command]().run();
+      });
+    }
+    const deleteTableDialog = byId('delete-table-dialog');
+    byId('table-delete').addEventListener('pointerdown', event => event.preventDefault());
+    byId('table-delete').addEventListener('click', () => {
+      if (sourceMode || !tableContext()) return;
+      deleteTablePosition = editor.state.selection.from;
+      deleteTableDialog.showModal();
+    });
+    byId('delete-table-cancel').addEventListener('click', () => deleteTableDialog.close());
+    byId('delete-table-confirm').addEventListener('click', () => {
+      deleteTableDialog.close();
+      editor.chain().focus().setTextSelection(deleteTablePosition).deleteTable().run();
+    });
     document.addEventListener('selectionchange', refreshTools);
     document.addEventListener('focusin', refreshTools);
     editor.on('transaction', refreshTools);
