@@ -6,16 +6,24 @@ const crypto = require('node:crypto');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'plain-text-cleaner.html'), 'utf8');
 const landing = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const documentPage = fs.readFileSync(path.join(root, 'document.html'), 'utf8');
 const style = html.match(/<style>([\s\S]*?)<\/style>/);
 const landingStyle = landing.match(/<style>([\s\S]*?)<\/style>/);
+const documentStyle = documentPage.match(/<style>([\s\S]*?)<\/style>/);
 const app = html.match(/<script id="cleaner-app">([\s\S]*?)<\/script>/);
-if (!style || !landingStyle || !app) throw Error('Expected inline stylesheets and the app script');
+const documentApp = documentPage.match(/<script id="document-app">([\s\S]*?)<\/script>/);
+if (!style || !landingStyle || !documentStyle || !app || !documentApp) throw Error('Expected inline stylesheets and app scripts');
 const hash = text => `'sha256-${crypto.createHash('sha256').update(text).digest('base64')}'`;
+const katexScriptHash = hash(fs.readFileSync(path.join(root, 'vendor/katex/katex.min.js')));
+const katexStyleHash = hash(fs.readFileSync(path.join(root, 'vendor/katex/katex.min.css')));
+if (!documentPage.includes(`integrity=${katexScriptHash.replace(/'/g, '"')}`) || !documentPage.includes(`integrity=${katexStyleHash.replace(/'/g, '"')}`)) throw Error('KaTeX integrity hashes are missing or stale');
+const styleSources = `${hash(style[1])} ${hash(landingStyle[1])} ${hash(documentStyle[1])} ${katexStyleHash}`;
 const policy = [
   "default-src 'none'",
-  `script-src ${hash(app[1])}`,
+  `script-src ${hash(app[1])} ${hash(documentApp[1])} ${katexScriptHash}`,
   "script-src-attr 'none'",
-  `style-src ${hash(style[1])} ${hash(landingStyle[1])}`,
+  `style-src ${styleSources}`,
+  `style-src-elem 'self' ${styleSources}`,
   "style-src-attr 'none'",
   "img-src 'self'",
   "connect-src 'self'",
@@ -31,10 +39,14 @@ const policy = [
 const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
   functions: { 'api/organize.mjs': { maxDuration: 30 } },
-  redirects: [{ source: '/plain-text-cleaner.html', destination: '/editor', permanent: true }],
+  redirects: [
+    { source: '/plain-text-cleaner.html', destination: '/editor', permanent: true },
+    { source: '/document.html', destination: '/document', permanent: true }
+  ],
   rewrites: [
     { source: '/', destination: '/index.html' },
-    { source: '/editor', destination: '/plain-text-cleaner.html' }
+    { source: '/editor', destination: '/plain-text-cleaner.html' },
+    { source: '/document', destination: '/document.html' }
   ],
   headers: [{
     source: '/(.*)',

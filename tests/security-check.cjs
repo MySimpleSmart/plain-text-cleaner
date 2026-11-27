@@ -11,22 +11,26 @@ const config = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'
 const headers = Object.fromEntries(config.headers[0].headers.map(({ key, value }) => [key, value]));
 const html = fs.readFileSync(path.join(root, 'plain-text-cleaner.html'));
 const landing = fs.readFileSync(path.join(root, 'index.html'));
+const documentPage = fs.readFileSync(path.join(root, 'document.html'));
 const logo = fs.readFileSync(path.join(root, 'text-cleaner-logo.svg'));
 const fonts = new Map([
   ['/fonts/Ubuntu-Regular-latin.woff2', fs.readFileSync(path.join(root, 'fonts/Ubuntu-Regular-latin.woff2'))],
   ['/fonts/Ubuntu-Bold-latin.woff2', fs.readFileSync(path.join(root, 'fonts/Ubuntu-Bold-latin.woff2'))]
 ]);
+const katexAssets = new Map();
+for (const name of fs.readdirSync(path.join(root, 'vendor/katex/fonts'))) katexAssets.set(`/vendor/katex/fonts/${name}`, fs.readFileSync(path.join(root, 'vendor/katex/fonts', name)));
+for (const name of ['katex.min.css', 'katex.min.js']) katexAssets.set(`/vendor/katex/${name}`, fs.readFileSync(path.join(root, 'vendor/katex', name)));
 let blockedRequests = 0;
 const server = http.createServer((request, response) => {
   for (const [key, value] of Object.entries(headers)) response.setHeader(key, value);
   if (request.url === '/blocked') blockedRequests++;
-  if (request.url === '/plain-text-cleaner.html') {
-    response.writeHead(308, { Location: '/editor' });
+  if (request.url === '/plain-text-cleaner.html' || request.url === '/document.html') {
+    response.writeHead(308, { Location: request.url === '/document.html' ? '/document' : '/editor' });
     response.end();
     return;
   }
-  response.setHeader('Content-Type', fonts.has(request.url) ? 'font/woff2' : request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
-  response.end(fonts.get(request.url) || (request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : request.url === '/editor' ? html : ''));
+  response.setHeader('Content-Type', /\.woff2$/u.test(request.url) ? 'font/woff2' : /\.css$/u.test(request.url) ? 'text/css' : /\.js$/u.test(request.url) ? 'text/javascript' : request.url === '/text-cleaner-logo.svg' ? 'image/svg+xml' : 'text/html; charset=utf-8');
+  response.end(fonts.get(request.url) || katexAssets.get(request.url) || (request.url === '/text-cleaner-logo.svg' ? logo : request.url === '/' || request.url === '/index.html' ? landing : request.url === '/editor' ? html : request.url === '/document' ? documentPage : ''));
 });
 
 async function verifyRoutes(base) {
@@ -41,7 +45,13 @@ async function verifyRoutes(base) {
   const followed = await request('/plain-text-cleaner.html');
   assert.equal(followed.status, 200, 'Legacy redirect must resolve without a loop');
   assert.equal(followed.url, new URL('/editor', base).href);
-  for (const pathname of ['/text-cleaner-logo.svg', ...fonts.keys()]) {
+  const documentRoute = await request('/document', { redirect: 'manual' });
+  assert.equal(documentRoute.status, 200, '/document must load without another redirect');
+  assert.match(await documentRoute.text(), /id="document-app"/);
+  const documentRedirect = await request('/document.html', { redirect: 'manual' });
+  assert.equal(documentRedirect.status, 308);
+  assert.equal(new URL(documentRedirect.headers.get('location'), base).pathname, '/document');
+  for (const pathname of ['/text-cleaner-logo.svg', ...fonts.keys(), ...katexAssets.keys()]) {
     const asset = await request(pathname, { redirect: 'manual' });
     assert.equal(asset.status, 200, `Asset failed: ${pathname}`);
     assert.ok((await asset.arrayBuffer()).byteLength > 0, `Asset is empty: ${pathname}`);
@@ -98,11 +108,11 @@ async function main() {
         const logo = document.querySelector('.brand img');
         const privacy = document.querySelector('.privacy');
         const credit = document.querySelector('.credit a');
-        if (!button || button.textContent.trim() !== 'OPEN EDITOR' || new URL(button.href).pathname !== '/editor') throw Error('Landing CTA is missing');
+        if (!button || button.textContent.trim() !== 'CLEAN TEXT' || new URL(button.href).pathname !== '/editor' || new URL(document.getElementById('open-document')?.href).pathname !== '/document') throw Error('Landing CTAs are missing');
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
         if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
         if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
-        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Drafts are saved in this browser by default') || !privacy.textContent.includes('sends only selected text to OpenAI')) throw Error('Privacy note is not visible');
+        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('browser by default') || !privacy.textContent.includes('sends selected text only after you confirm')) throw Error('Privacy note is not visible');
         if (!credit || credit.href !== 'https://simplesmart.com.au/' || !credit.rel.includes('noopener') || !credit.rel.includes('noreferrer')) throw Error('Developer link is missing');
         if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
         if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
@@ -180,6 +190,59 @@ async function main() {
     await homeLoaded;
     const home = await send('Runtime.evaluate', { expression: "location.pathname === '/' && Boolean(document.getElementById('open-editor'))", returnByValue: true }, sessionId);
     if (!home.result.value) throw Error('Clicking the editor logo did not return home');
+    const documentLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Page.navigate', { url: new URL('/document', base).href }, sessionId);
+    await documentLoaded;
+    const documentResult = await send('Runtime.evaluate', {
+      expression: `(async () => {
+        if (location.pathname !== '/document' || !window.katex) throw Error('Document page or renderer failed');
+        if (window.cspViolations.length) throw Error('Document violated CSP on load: ' + JSON.stringify(window.cspViolations));
+        const source = document.getElementById('source');
+        source.value = 'Name\\tValue\\nA\\t42\\n\\n1. First\\n2. Second\\n\\n\\\\[\\nPC2=\\\\sum_{i=1}^{7}b_i(x_i-\\\\bar{x}_i)\\n\\\\]';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (document.querySelectorAll('#content table tr').length !== 2 || document.querySelectorAll('#content ol li').length !== 2 || !document.querySelector('#content .katex-display')) throw Error('Document structure failed');
+        const formula = document.querySelector('#content .formula');
+        if (formula.classList.contains('formula-error') || !formula.querySelector('math')) throw Error('LaTeX failed to render');
+        source.value = '\\\\[\\nX=\\\\frac{0.3541}{0.0458}\\\\approx\\\\boxed{7.73}\\n\\\\]';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (!document.querySelector('#content .katex-html') || window.cspViolations.length) throw Error('Fraction rendering or CSP failed: ' + JSON.stringify(window.cspViolations));
+        source.value = 'Placeholder\\nPossible options\\n[Variable]\\nSales / Population\\n[unit]\\n% / kg\\nX, Y, Z\\nActual values';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (document.querySelectorAll('#content table tr').length !== 4) throw Error('Flattened two-column table was not recognized');
+        source.value = 'Category\\n\\nPercentage (%)\\n\\n[Highest category]\\n\\nX\\n\\n[Second category]\\n\\nY\\n\\n[Lowest category]\\n\\nZ';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (document.querySelectorAll('#content table tr').length !== 4) throw Error('Blank-separated table was not recognized');
+        source.value = '1. One\\n  • Nested\\n2. Two\\n• Separate bullet';
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (document.querySelectorAll('#content > ol > li').length !== 2 || document.querySelectorAll('#content > ol ul li').length !== 1 || document.querySelectorAll('#content > ul > li').length !== 1) throw Error('Mixed nested lists failed');
+        let clipboardItems;
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async items => { clipboardItems = items; } } });
+        document.getElementById('copy').click();
+        await new Promise(resolve => setTimeout(resolve, 20));
+        if (!clipboardItems?.[0]?.types.includes('text/html') || !(await (await clipboardItems[0].getType('text/html')).text()).includes('<ol')) throw Error('Structured HTML clipboard copy failed');
+        const transfer = new DataTransfer();
+        transfer.setData('text/plain', 'X');
+        transfer.setData('text/html', '<table onclick="window.evil=true"><tr><th>Safe</th><td><img src="/blocked?clipboard" onerror="window.evil=true">Cell<script>window.evil=true;<\\/script></td></tr></table>');
+        source.select(); source.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, cancelable: true }));
+        if (window.evil || /onclick|onerror|script/i.test(document.getElementById('content').innerHTML) || !document.querySelector('#content table')) throw Error('Rich paste sanitization failed');
+        const copied = document.getElementById('content').innerHTML;
+        if (!copied.includes('<table>') || !copied.includes('<th>')) throw Error('Table not copyable as HTML');
+        if (document.documentElement.scrollWidth > innerWidth) throw Error('Document page overflows on mobile');
+        if (window.cspViolations.length) throw Error('Document violated CSP: ' + JSON.stringify(window.cspViolations));
+        return { status: 'PASS', violations: window.cspViolations };
+      })()`, awaitPromise: true, returnByValue: true
+    }, sessionId);
+    if (documentResult.exceptionDetails) throw Error(documentResult.exceptionDetails.exception?.description || JSON.stringify(documentResult.exceptionDetails));
+    if (process.env.DOCUMENT_SCREENSHOT) {
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+      fs.writeFileSync(process.env.DOCUMENT_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
+    process.stdout.write(JSON.stringify(documentResult.result.value) + '\n');
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {
     const exited = new Promise(resolve => browser.once('close', resolve)); browser.kill(); await exited;

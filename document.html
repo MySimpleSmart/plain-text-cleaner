@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Turn pasted text, tables, lists and LaTeX into a clean document.">
+  <title>Document Builder — Plain Text Cleaner</title>
+  <link rel="icon" type="image/svg+xml" href="/text-cleaner-logo.svg">
+  <link rel="stylesheet" href="/vendor/katex/katex.min.css" integrity="sha256-AOCwlBcbB/WEIgdfRptP6sKy97zhruyUPAjaTWl/Tc8=" crossorigin="anonymous">
+  <style>
+    @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Regular-latin.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
+    @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Bold-latin.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
+    :root { font-family: Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #37352f; background: #f6f6f4; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    button, textarea { font: inherit; }
+    button { border: 0; cursor: pointer; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid #0b2027; outline-offset: 3px; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .topbar { display: flex; align-items: center; gap: 20px; min-height: 68px; padding: 12px clamp(20px, 4vw, 56px); border-bottom: 1px solid #e7e7e5; background: #fff; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; color: #0b2027; font-size: 13px; font-weight: 700; text-decoration: none; }
+    .brand img { width: 22px; height: 22px; }
+    nav { display: flex; align-items: center; gap: 4px; }
+    nav a { padding: 9px 12px; border-radius: 5px; color: #62615c; font-size: 12px; font-weight: 700; text-decoration: none; }
+    nav a:hover { background: #f3f3f1; }
+    nav a[aria-current='page'] { background: #edf1f0; color: #0b2027; }
+    .top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .copy { min-height: 38px; padding: 8px 18px; border-radius: 5px; background: #0b2027; color: #fff; font-size: 12px; font-weight: 700; transition: background-color .2s ease; }
+    .copy.copied { background: #17804a; opacity: 1; }
+    .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 5px; background: transparent; color: #323944; }
+    .icon-button:hover:not(:disabled) { background: #f1f1ef; }
+    .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .workspace { display: grid; grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr); gap: clamp(16px, 2.5vw, 32px); max-width: 1540px; margin: 0 auto; padding: clamp(20px, 3vw, 40px); }
+    .source-pane, .preview-pane { min-width: 0; }
+    .pane-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+    h1, h2 { margin: 0; color: #0b2027; font-size: 16px; font-weight: 700; }
+    .pane-heading span { color: #777671; font-size: 12px; }
+    .source-note { margin: 0 0 16px; color: #777671; font-size: 13px; line-height: 1.5; }
+    textarea { display: block; width: 100%; min-height: min(70vh, 900px); padding: 20px; resize: vertical; border: 1px solid #e2e2df; border-radius: 6px; background: #fff; color: #37352f; font-size: 15px; line-height: 1.65; white-space: pre-wrap; tab-size: 4; }
+    textarea::placeholder { color: #9a9995; }
+    .paper { min-height: min(70vh, 900px); padding: clamp(24px, 4vw, 58px); border: 1px solid #e7e7e5; border-radius: 5px; background: #fff; box-shadow: 0 2px 12px #0b202708; overflow-wrap: anywhere; }
+    .empty { margin: 0; color: #9a9995; font-size: 15px; }
+    .document-content { font-size: 15px; line-height: 1.7; }
+    .document-content > *:first-child { margin-top: 0; }
+    .document-content p, .document-content h1, .document-content h2, .document-content h3, .document-content h4, .document-content h5, .document-content h6 { margin: 0 0 1em; }
+    .document-content h1 { font-size: 26px; }
+    .document-content h2 { font-size: 22px; }
+    .document-content h3 { font-size: 20px; }
+    .document-content h4, .document-content h5, .document-content h6 { font-size: 17px; }
+    .document-content ul, .document-content ol { margin: 0 0 1em; padding-left: 1.6em; }
+    .document-content li { padding-left: .2em; }
+    .document-content li + li { margin-top: .2em; }
+    .document-content li > ul, .document-content li > ol { margin: .2em 0 .35em; }
+    .document-content table { width: 100%; margin: 0 0 1.2em; border-collapse: collapse; table-layout: auto; }
+    .document-content th, .document-content td { min-width: 64px; padding: 7px 10px; border: 1px solid #d9d9d5; text-align: left; vertical-align: top; font-weight: 400; }
+    .document-content th { font-weight: 700; }
+    .document-content .formula { margin: 0 0 1.2em; overflow-x: auto; font-size: 1.05em; }
+    .document-content .formula-error { color: #7e3838; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    .document-content pre { overflow: auto; margin: 0 0 1em; padding: 12px; background: #f6f6f4; font-size: 13px; }
+    .document-content .katex-display { margin: .45em 0; }
+    .status { margin: 12px 0 0; min-height: 20px; color: #777671; font-size: 12px; }
+    .toast { position: fixed; top: 80px; right: 20px; z-index: 10; max-width: 280px; padding: 9px 13px; border: 1px solid #e7e7e5; border-radius: 5px; background: #fff; box-shadow: 0 6px 20px #0b202718; font-size: 13px; opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; pointer-events: none; }
+    .toast.visible { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+    @media (max-width: 800px) { .workspace { grid-template-columns: 1fr; } textarea { min-height: 240px; } .paper { min-height: 360px; } }
+    @media (max-width: 560px) { .topbar { flex-wrap: wrap; gap: 8px; } nav { order: 3; width: 100%; } .top-actions { margin-left: auto; } .workspace { padding: 20px; } }
+    @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Back to home"><img src="/text-cleaner-logo.svg" alt="" width="22" height="22"><span>Plain Text Cleaner</span></a>
+    <nav aria-label="Tools"><a href="/editor">CLEAN TEXT</a><a href="/document" aria-current="page">DOCUMENT</a></nav>
+    <div class="top-actions">
+      <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+      <button id="copy" class="copy" disabled>COPY</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <section class="source-pane" aria-labelledby="source-title">
+      <div class="pane-heading"><h1 id="source-title">Source</h1><span>Editable text</span></div>
+      <p class="source-note">Paste text, tables, lists or LaTeX. The document updates in your browser.</p>
+      <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false"></textarea>
+      <p class="status" id="source-status">Nothing pasted yet</p>
+    </section>
+    <section class="preview-pane" aria-labelledby="preview-title">
+      <div class="pane-heading"><h2 id="preview-title">Document</h2><span>Structure preview</span></div>
+      <div class="paper"><div id="content" class="document-content"><p class="empty">Your document will appear here.</p></div></div>
+      <p class="status" id="document-status" role="status" aria-live="polite">Ready</p>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
+  <script id="document-app">
+    const source = document.getElementById('source');
+    const content = document.getElementById('content');
+    const copyButton = document.getElementById('copy');
+    const clearButton = document.getElementById('clear');
+    const status = document.getElementById('document-status');
+    const toast = document.getElementById('toast');
+    const MAX_SOURCE = 100000;
+    const MAX_TABLE_ROWS = 1000;
+    const MAX_TABLE_COLUMNS = 50;
+    let blocks = [];
+    let renderTimer;
+    let copyTimer;
+    let toastTimer;
+
+    const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
+    const tidy = value => value.replace(/\r\n?/g, '\n').replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ').replace(/[ \t]+/gu, ' ').trim();
+
+    function inlineText(node) {
+      if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
+      if (node.nodeType !== Node.ELEMENT_NODE || ignoreTags.has(node.tagName)) return '';
+      if (node.tagName === 'BR') return '\n';
+      if (node.tagName === 'UL' || node.tagName === 'OL' || node.tagName === 'TABLE') return '';
+      return [...node.childNodes].map(inlineText).join('');
+    }
+
+    function tableSource(table) {
+      const rows = [...table.querySelectorAll('tr')].slice(0, MAX_TABLE_ROWS);
+      if (!rows.length) return '';
+      return rows.map(row => [...row.children].filter(cell => cell.matches('th,td')).slice(0, MAX_TABLE_COLUMNS)
+        .map(cell => tidy(inlineText(cell)).replace(/\s*\n\s*/gu, ' ')).join('\t')).join('\n');
+    }
+
+    function listSource(list, level = 0) {
+      if (level > 8) return '';
+      const ordered = list.tagName === 'OL';
+      let next = Number(list.getAttribute('start')) || 1;
+      const lines = [];
+      for (const item of [...list.children].filter(child => child.tagName === 'LI')) {
+        const number = Number(item.getAttribute('value')) || next;
+        const text = tidy([...item.childNodes].map(inlineText).join(''));
+        lines.push('  '.repeat(level) + (ordered ? `${number}. ` : '• ') + text);
+        for (const nested of [...item.children].filter(child => child.matches('ul,ol'))) lines.push(listSource(nested, level + 1));
+        next = number + 1;
+      }
+      return lines.filter(Boolean).join('\n');
+    }
+
+    function richSource(html) {
+      if (html.length > 1000000 || !/<(?:table|ol|ul|math)\b/iu.test(html)) return null;
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      const parts = [];
+      const walk = (node, depth = 0) => {
+        if (depth > 32) return;
+        if (node.nodeType === Node.TEXT_NODE) { const value = tidy(node.nodeValue); if (value) parts.push(value); return; }
+        if (node.nodeType !== Node.ELEMENT_NODE || ignoreTags.has(node.tagName)) return;
+        if (node.tagName === 'TABLE') { const value = tableSource(node); if (value) parts.push(value); return; }
+        if (node.tagName === 'UL' || node.tagName === 'OL') { const value = listSource(node); if (value) parts.push(value); return; }
+        if (node.tagName === 'MATH') {
+          const latex = node.querySelector('annotation[encoding="application/x-tex"]')?.textContent;
+          if (latex) parts.push('\\[' + latex + '\\]');
+          else if (node.textContent.trim()) parts.push(tidy(node.textContent));
+          return;
+        }
+        if (/^H[1-6]$/u.test(node.tagName)) { const value = tidy(inlineText(node)); if (value) parts.push('#'.repeat(Number(node.tagName[1])) + ' ' + value); return; }
+        if (['P', 'PRE', 'BLOCKQUOTE', 'LI'].includes(node.tagName)) { const value = tidy(inlineText(node)); if (value) parts.push(value); return; }
+        for (const child of node.childNodes) walk(child, depth + 1);
+      };
+      walk(parsed.body);
+      return parts.length ? parts.join('\n\n') : null;
+    }
+
+    function listItem(line) {
+      const match = line.match(/^([ \t]*)(?:(\d+)[.)]|([-+*•☑☐]))[ \t]+(.+)$/u);
+      if (!match) return null;
+      return { indent: Math.min(match[1].replace(/\t/gu, '  ').length, 16), ordered: Boolean(match[2]), number: match[2] ? Number(match[2]) : null, text: tidy(match[4]), marker: match[3] || null };
+    }
+
+    function pipeCells(line) {
+      const trimmed = line.trim();
+      if (!trimmed.includes('|')) return null;
+      return trimmed.replace(/^\|/u, '').replace(/\|$/u, '').split(/(?<!\\)\|/u).map(cell => tidy(cell.replace(/\\\|/gu, '|')));
+    }
+
+    function pairedTable(lines, start) {
+      if (lines[start].trim().length > 40 || /[.!?]$/u.test(lines[start].trim())) return null;
+      const cells = [], positions = [];
+      let end = start;
+      while (end < lines.length && cells.length < 2 * MAX_TABLE_ROWS) {
+        if (!lines[end].trim()) {
+          if (!lines[end + 1]?.trim()) break;
+          end++; continue;
+        }
+        cells.push(tidy(lines[end++])); positions.push(end);
+      }
+      if (cells.length < 8 || cells[0].length > 40 || cells[1].length > 40) return null;
+      let count = cells.length - cells.length % 2;
+      while (count >= 8 && !isPairedTableCells(cells.slice(0, count))) count -= 2;
+      if (count < 8) return null;
+      const rows = [];
+      for (let index = 0; index < count; index += 2) rows.push([cells[index], cells[index + 1]]);
+      return { rows, end: positions[count - 1] };
+    }
+
+    function isPairedTableCells(cells) {
+      const firstColumn = cells.filter((_, index) => index % 2 === 0);
+      if (!firstColumn.every(cell => cell.length <= 70 && !/[.!?]$/u.test(cell) && !listItem(cell))) return false;
+      const labelRows = firstColumn.slice(1).filter(cell => /^\[[^\]]+\]$/u.test(cell) || /^[\p{L}\p{N}_ ,/()%-]+$/u.test(cell));
+      return labelRows.length >= firstColumn.length - 2;
+    }
+
+    function parseDocument(value) {
+      const lines = value.replace(/\r\n?/g, '\n').split('\n');
+      const result = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) { i++; continue; }
+        const bareMath = line.trim() === '[' && /^\s*\\(?:boxed|begin|frac|sum|sqrt|left|text|bar|overline)\b/u.test(lines[i + 1] || '');
+        const opening = bareMath ? ['[', '[', ''] : line.match(/^\s*(\\\[|\$\$)\s*(.*)$/u);
+        if (opening) {
+          const closing = opening[1] === '$$' ? '$$' : opening[1] === '[' ? ']' : '\\]';
+          let latex = opening[2], end = i;
+          const inlineEnd = latex.indexOf(closing);
+          if (inlineEnd !== -1) latex = latex.slice(0, inlineEnd);
+          else while (++end < lines.length) {
+            const found = lines[end].indexOf(closing);
+            if (found !== -1) { latex += '\n' + lines[end].slice(0, found); break; }
+            latex += '\n' + lines[end];
+          }
+          if (inlineEnd !== -1 || end < lines.length) { result.push({ type: 'formula', latex: latex.trim() }); i = inlineEnd !== -1 ? i + 1 : end + 1; continue; }
+        }
+        if (/^\s*\\begin\{(?:aligned|align|gather|equation)/u.test(line)) {
+          const formulaLines = [line]; i++;
+          while (i < lines.length && formulaLines.length < 100) { formulaLines.push(lines[i]); if (/\\end\{/u.test(lines[i++])) break; }
+          result.push({ type: 'formula', latex: formulaLines.join('\n') }); continue;
+        }
+        if (line.length <= 500 && (/^\s*\\(?:boxed|frac|sum|sqrt)\b/u.test(line) || /[=≈].*(?:\\(?:sum|frac|boxed|bar|sqrt|cdot)\b|[_^]\{)/u.test(line))) {
+          result.push({ type: 'formula', latex: line.trim() }); i++; continue;
+        }
+        if (line.includes('\t')) {
+          const rows = [];
+          while (i < lines.length && lines[i].includes('\t') && rows.length < MAX_TABLE_ROWS) rows.push(lines[i++].split('\t').slice(0, MAX_TABLE_COLUMNS).map(tidy));
+          if (rows.some(row => row.length > 1)) { result.push({ type: 'table', rows }); continue; }
+        }
+        const header = pipeCells(line), separator = pipeCells(lines[i + 1] || '');
+        if (header?.length >= 2 && separator?.length === header.length && separator.every(cell => /^:?-{3,}:?$/u.test(cell))) {
+          const rows = [header]; i += 2;
+          while (i < lines.length && pipeCells(lines[i])?.length === header.length && rows.length < MAX_TABLE_ROWS) rows.push(pipeCells(lines[i++]));
+          result.push({ type: 'table', rows }); continue;
+        }
+        const paired = pairedTable(lines, i);
+        if (paired) { result.push({ type: 'table', rows: paired.rows }); i = paired.end; continue; }
+        const item = listItem(line);
+        if (item) {
+          const items = [item]; i++;
+          while (i < lines.length) {
+            const next = listItem(lines[i]);
+            if (next) { items.push(next); i++; continue; }
+            if (!lines[i].trim() && listItem(lines[i + 1] || '')) { i++; continue; }
+            break;
+          }
+          result.push({ type: 'list', items }); continue;
+        }
+        const heading = line.match(/^\s*(#{1,6})\s+(.+)$/u);
+        if (heading) { result.push({ type: 'heading', level: heading[1].length, text: tidy(heading[2]) }); i++; continue; }
+        if (/^\s*(`{3,}|~{3,})/u.test(line)) {
+          const fence = line.trim().slice(0, 3), code = [];
+          i++;
+          while (i < lines.length && !lines[i].trim().startsWith(fence)) code.push(lines[i++]);
+          if (i < lines.length) i++;
+          result.push({ type: 'code', text: code.join('\n') }); continue;
+        }
+        const paragraph = [line.trim()]; i++;
+        while (i < lines.length && lines[i].trim() && !lines[i].includes('\t') && !listItem(lines[i]) && !/^\s*(?:\\\[|\$\$|#{1,6}\s|`{3,}|~{3,})/u.test(lines[i])) paragraph.push(lines[i++].trim());
+        result.push({ type: 'paragraph', text: paragraph.join(' ') });
+      }
+      return result;
+    }
+
+    function renderInline(text, parent) {
+      const pattern = /\\\(([\s\S]*?)\\\)|\$([^$\n]+)\$/gu;
+      let cursor = 0;
+      for (const match of text.matchAll(pattern)) {
+        parent.append(document.createTextNode(text.slice(cursor, match.index)));
+        const formula = document.createElement('span');
+        try { katex.render(match[1] || match[2], formula, { throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
+        catch { formula.className = 'formula-error'; formula.textContent = match[0]; }
+        parent.append(formula);
+        cursor = match.index + match[0].length;
+      }
+      parent.append(document.createTextNode(text.slice(cursor)));
+    }
+
+    function renderList(items, parent) {
+      const stack = [];
+      for (const item of items) {
+        while (stack.length && item.indent < stack.at(-1).indent) stack.pop();
+        let current = stack.at(-1);
+        if (current && item.indent === current.indent && item.ordered !== current.ordered) { stack.pop(); current = stack.at(-1); }
+        if (!current || item.indent > current.indent || item.ordered !== current.ordered) {
+          const list = document.createElement(item.ordered ? 'ol' : 'ul');
+          if (item.ordered) list.start = item.number;
+          (current && item.indent > current.indent ? current.lastItem : parent)?.append(list);
+          current = { indent: item.indent, ordered: item.ordered, list, lastItem: null };
+          stack.push(current);
+        }
+        const li = document.createElement('li');
+        if (item.ordered) li.value = item.number;
+        renderInline(item.text, li);
+        current.list.append(li);
+        current.lastItem = li;
+      }
+    }
+
+    function render() {
+      clearTimeout(renderTimer);
+      blocks = parseDocument(source.value);
+      content.replaceChildren();
+      if (!blocks.length) {
+        const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Your document will appear here.';
+        content.append(empty);
+      }
+      for (const block of blocks) {
+        if (block.type === 'list') { renderList(block.items, content); continue; }
+        if (block.type === 'table') {
+          const table = document.createElement('table'), body = document.createElement('tbody');
+          for (const [index, cells] of block.rows.entries()) {
+            const row = document.createElement('tr');
+            for (const value of cells) { const cell = document.createElement(index === 0 ? 'th' : 'td'); cell.textContent = value; row.append(cell); }
+            body.append(row);
+          }
+          table.append(body); content.append(table); continue;
+        }
+        if (block.type === 'formula') {
+          const holder = document.createElement('div'); holder.className = 'formula';
+          try { katex.render(block.latex, holder, { displayMode: true, throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
+          catch { holder.classList.add('formula-error'); holder.textContent = '\\[' + block.latex + '\\]'; }
+          content.append(holder); continue;
+        }
+        const element = document.createElement(block.type === 'heading' ? `h${block.level}` : block.type === 'code' ? 'pre' : 'p');
+        if (block.type === 'code') element.textContent = block.text;
+        else renderInline(block.text, element);
+        content.append(element);
+      }
+      document.getElementById('source-status').textContent = source.value ? `${source.value.length.toLocaleString()} characters` : 'Nothing pasted yet';
+      const tables = blocks.filter(block => block.type === 'table').length;
+      const lists = blocks.filter(block => block.type === 'list').length;
+      const formulas = blocks.filter(block => block.type === 'formula').length;
+      status.textContent = source.value ? `${blocks.length} blocks · ${tables} tables · ${lists} lists · ${formulas} formulas` : 'Ready';
+      clearButton.disabled = !source.value;
+      copyButton.disabled = !source.value.trim() || copyButton.classList.contains('copied');
+    }
+
+    function showToast(text) {
+      clearTimeout(toastTimer);
+      toast.textContent = text; toast.classList.add('visible');
+      toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000);
+    }
+
+    source.addEventListener('input', () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 80); });
+    source.addEventListener('paste', event => {
+      const plain = event.clipboardData?.getData('text/plain') || '';
+      const html = event.clipboardData?.getData('text/html') || '';
+      const value = richSource(html) || plain;
+      if (!value) return;
+      event.preventDefault();
+      if (source.value.length - (source.selectionEnd - source.selectionStart) + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return; }
+      source.setRangeText(value, source.selectionStart, source.selectionEnd, 'end');
+      render();
+    });
+    clearButton.addEventListener('click', () => { source.value = ''; render(); source.focus(); showToast('Document cleared'); });
+    copyButton.addEventListener('click', async () => {
+      if (!source.value.trim()) return;
+      const plain = source.value;
+      const html = `<html><head><meta charset="utf-8"></head><body>${content.innerHTML}</body></html>`;
+      try {
+        if (navigator.clipboard?.write && window.ClipboardItem) {
+          await navigator.clipboard.write([new ClipboardItem({
+            'text/plain': new Blob([plain], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' })
+          })]);
+        } else await navigator.clipboard.writeText(plain);
+      } catch { showToast('Could not copy · select the document and press Ctrl/Cmd+C'); return; }
+      copyButton.textContent = 'COPIED'; copyButton.classList.add('copied'); copyButton.disabled = true;
+      showToast('Copied with document structure');
+      clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => { copyButton.textContent = 'COPY'; copyButton.classList.remove('copied'); copyButton.disabled = !source.value.trim(); }, 2600);
+    });
+    render();
+  </script>
+</body>
+</html>

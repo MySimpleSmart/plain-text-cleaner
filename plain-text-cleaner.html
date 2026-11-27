@@ -16,6 +16,9 @@
     .brand-logo { position: fixed; top: 16px; left: 16px; z-index: 1; display: block; width: 24px; height: 24px; }
     .brand-logo:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
     .brand-logo img { display: block; width: 24px; height: 24px; }
+    .document-link { position: fixed; top: 17px; left: 52px; z-index: 1; padding: 4px 6px; border-radius: 4px; color: #526068; font-size: 11px; font-weight: 700; text-decoration: none; }
+    .document-link:hover { background: #f1f1ef; color: var(--accent); }
+    .document-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     .case-actions { position: absolute; z-index: 3; display: flex; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; background: #fff; border: 1px solid #e7e7e5; border-radius: 8px; box-shadow: 0 8px 24px #0b20271a; }
     .case-actions[hidden] { display: none; }
     .case-actions button { text-transform: none; font-weight: 600; }
@@ -143,6 +146,7 @@
 </head>
 <body>
   <a class="brand-logo" href="/" aria-label="Back to home"><img src="text-cleaner-logo.svg" alt="" width="24" height="24" /></a>
+  <a class="document-link" href="/document">DOCUMENT</a>
   <section class="toolbar" aria-label="Editor controls">
     <div class="actions">
       <button id="copy" class="primary" disabled>Copy</button>

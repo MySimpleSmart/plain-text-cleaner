@@ -23,6 +23,10 @@
     .primary:hover { background: #163641; transform: translateY(-1px); }
     .primary:focus-visible, .brand:focus-visible, .credit a:focus-visible { outline: 2px solid #0b2027; outline-offset: 4px; }
     .primary svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .tool-links { display: flex; flex-wrap: wrap; gap: 12px; }
+    .secondary { display: inline-flex; align-items: center; min-height: 48px; padding: 12px 18px; border: 1px solid #d5d9d7; border-radius: 6px; color: #0b2027; font-size: 13px; font-weight: 700; letter-spacing: .035em; text-decoration: none; }
+    .secondary:hover { background: #f2f5f4; }
+    .secondary:focus-visible { outline: 2px solid #0b2027; outline-offset: 4px; }
     .steps { margin-top: clamp(64px, 9vh, 96px); }
     h2 { margin: 0 0 16px; color: #0b2027; font-size: 18px; letter-spacing: -.02em; }
     ol { margin: 0; padding: 0; list-style: none; }
@@ -56,8 +60,11 @@
     <section aria-labelledby="intro-title">
       <p class="eyebrow">PASTE · CLEAN · COPY</p>
       <h1 id="intro-title">Text, without the mess.</h1>
-      <p class="lead">Paste text from documents, spreadsheets, or websites. Plain Text Cleaner removes unwanted formatting and keeps your text ready to use.</p>
-      <a id="open-editor" class="primary" href="/editor">OPEN EDITOR <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg></a>
+      <p class="lead">Clean pasted text, or build a structured document from tables, lists, and LaTeX. Choose the tool for your work.</p>
+      <div class="tool-links">
+        <a id="open-editor" class="primary" href="/editor">CLEAN TEXT <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg></a>
+        <a id="open-document" class="secondary" href="/document">BUILD DOCUMENT</a>
+      </div>
     </section>
     <section class="steps" aria-labelledby="steps-title">
       <h2 id="steps-title">How it works</h2>
@@ -66,7 +73,7 @@
         <li><span class="number">02</span><span><strong>Clean automatically.</strong> Extra spaces, blank lines, and common markup are cleaned on paste. You can adjust the rules in Settings.</span></li>
         <li><span class="number">03</span><span><strong>Copy or export.</strong> Copy clean text with tables, download a TXT file, or print to PDF.</span></li>
       </ol>
-      <p class="privacy"><strong>Basic cleaning happens in your browser.</strong> AI organization, when available, sends only selected text to OpenAI after you confirm. Drafts are saved in this browser by default. You can turn this off in Settings.</p>
+      <p class="privacy"><strong>Your text stays in your browser during basic cleaning and document building.</strong> The Clean Text editor saves drafts in this browser by default; you can turn this off in Settings. Optional AI organization, when available, sends selected text only after you confirm.</p>
     </section>
   </main>
   <footer class="credit">Developed by <a href="https://simplesmart.com.au/" target="_blank" rel="noopener noreferrer">SimpleSmart</a></footer>
