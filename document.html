@@ -30,12 +30,12 @@
     .icon-button:hover:not(:disabled) { background: #f1f1ef; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .format-actions { position: absolute; left: 0; top: 0; z-index: 4; display: flex; gap: 4px; padding: 6px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .format-actions { position: absolute; left: 0; top: 0; z-index: 4; display: flex; align-items: center; gap: 4px; padding: 6px; scroll-margin-bottom: 100px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
     .format-actions .icon-button { font-size: 15px; font-weight: 700; }
     .format-actions .italic { font-style: italic; }
     .format-actions .underline { text-decoration: underline; }
     .format-actions[hidden] { display: none; }
-    .tool-divider { width: 1px; height: 22px; background: #e7e7e5; }
+    .tool-divider { flex: none; width: 1px; height: 22px; background: #e7e7e5; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     main { padding: 32px 48px 180px; }
     .paper { position: relative; max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
@@ -102,24 +102,20 @@
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
     <button id="source-toggle" class="icon-button" aria-label="Show original source" title="Show original source · editing it rebuilds the Document" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
-    <span class="tool-divider" aria-hidden="true"></span>
-    <button id="format-bold-main" class="icon-button" type="button" aria-label="Bold" title="Bold (Ctrl/Cmd+B)" aria-pressed="false"><strong>B</strong></button>
-    <button id="format-italic-main" class="icon-button" type="button" aria-label="Italic" title="Italic (Ctrl/Cmd+I)" aria-pressed="false"><em>I</em></button>
-    <button id="format-underline-main" class="icon-button" type="button" aria-label="Underline" title="Underline (Ctrl/Cmd+U)" aria-pressed="false"><u>U</u></button>
-    <span class="tool-divider" aria-hidden="true"></span>
-    <button id="list-bullet" class="icon-button" type="button" aria-label="Bullet list" title="Bullet list" aria-pressed="false">•</button>
-    <button id="list-ordered" class="icon-button" type="button" aria-label="Numbered list" title="Numbered list" aria-pressed="false">1.</button>
-    <button id="list-task" class="icon-button" type="button" aria-label="Checklist" title="Checklist" aria-pressed="false">☐</button>
     <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
   </div></section>
   <main>
     <div class="paper" id="paper">
       <div id="content" class="document-content" aria-label="Document editor"></div>
-      <div id="format-actions" class="format-actions" role="group" aria-label="Style selected document text" hidden>
-        <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold">B</button>
-        <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic">I</button>
-        <button id="format-underline" class="icon-button underline" type="button" aria-label="Underline selected text" title="Underline">U</button>
+      <div id="format-actions" class="format-actions" role="group" aria-label="Selected document text actions" hidden>
+        <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold (Ctrl/Cmd+B)" aria-pressed="false">B</button>
+        <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic (Ctrl/Cmd+I)" aria-pressed="false">I</button>
+        <button id="format-underline" class="icon-button underline" type="button" aria-label="Underline selected text" title="Underline (Ctrl/Cmd+U)" aria-pressed="false">U</button>
+        <span class="tool-divider" aria-hidden="true"></span>
+        <button id="list-bullet" class="icon-button" type="button" aria-label="Bullet list" title="Bullet list" aria-pressed="false">•</button>
+        <button id="list-ordered" class="icon-button" type="button" aria-label="Numbered list" title="Numbered list" aria-pressed="false">1.</button>
+        <button id="list-task" class="icon-button" type="button" aria-label="Checklist" title="Checklist" aria-pressed="false">☐</button>
       </div>
       <textarea id="source" aria-label="Original document source. Editing it rebuilds the Document." placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
     </div>
@@ -344,9 +340,9 @@
     const formatActions = byId('format-actions');
     const formatActionsRule = Array.from(document.styleSheets[0].cssRules).find(rule => rule.selectorText === '.format-actions');
     const buttons = {
-      bold: [byId('format-bold'), byId('format-bold-main')],
-      italic: [byId('format-italic'), byId('format-italic-main')],
-      underline: [byId('format-underline'), byId('format-underline-main')],
+      bold: [byId('format-bold')],
+      italic: [byId('format-italic')],
+      underline: [byId('format-underline')],
       bulletList: [byId('list-bullet')], orderedList: [byId('list-ordered')], taskList: [byId('list-task')]
     };
 
@@ -482,7 +478,8 @@
       }
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-      const valid = !sourceMode && !editor.state.selection.empty && range && content.contains(range.commonAncestorContainer);
+      const editorFocused = content.contains(document.activeElement) || formatActions.contains(document.activeElement);
+      const valid = !sourceMode && editorFocused && !editor.state.selection.empty && range && content.contains(range.commonAncestorContainer);
       formatActions.hidden = !valid;
       if (!valid) return;
       const box = range.getBoundingClientRect(), paper = byId('paper').getBoundingClientRect();
@@ -616,9 +613,10 @@
     };
     for (const [type, group] of Object.entries(buttons)) for (const button of group) {
       button.addEventListener('pointerdown', event => event.preventDefault());
-      button.addEventListener('click', () => { if (!sourceMode) toolCommands[type](); });
+      button.addEventListener('click', () => { if (!sourceMode && !editor.state.selection.empty) toolCommands[type](); });
     }
     document.addEventListener('selectionchange', refreshTools);
+    document.addEventListener('focusin', refreshTools);
     editor.on('transaction', refreshTools);
     sourceToggle.addEventListener('click', () => {
       sourceMode = !sourceMode;

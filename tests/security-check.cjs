@@ -258,6 +258,11 @@ async function main() {
       const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
       fs.writeFileSync(process.env.DOCUMENT_SCREENSHOT, Buffer.from(data, 'base64'));
     }
+    if (process.env.SELECTION_SCREENSHOT) {
+      await send('Runtime.evaluate', { expression: "editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run(); refreshTools()", returnByValue: true }, sessionId);
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+      fs.writeFileSync(process.env.SELECTION_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
     const documentResult = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/document' || !window.documentAppReady || !window.createDocumentEditor) throw Error('Document engine did not load');
@@ -270,9 +275,14 @@ async function main() {
         if (!source.hidden || content.hidden || !content.querySelector('.ProseMirror')) throw Error('Document did not open as an editable page');
         editor.chain().focus().setTextSelection({ from: 1, to: 6 }).run();
         await new Promise(resolve => setTimeout(resolve, 30)); refreshTools();
-        if (document.getElementById('format-actions').hidden) throw Error('Selection styling toolbar did not appear: ' + JSON.stringify({ selection: editor.state.selection.toJSON(), domSelection: getSelection()?.toString(), hasRange: getSelection()?.rangeCount, within: getSelection()?.rangeCount ? content.contains(getSelection().getRangeAt(0).commonAncestorContainer) : false, sourceMode }));
-        document.getElementById('format-bold-main').click();
+        if (document.getElementById('format-actions').hidden || !document.querySelector('#format-actions #list-bullet') || document.querySelector('.toolbar #format-bold, .toolbar #list-bullet')) throw Error('Selection toolbar did not contain all formatting actions');
+        const selectedBox = getSelection().getRangeAt(0).getBoundingClientRect();
+        const floatingBox = document.getElementById('format-actions').getBoundingClientRect();
+        if (floatingBox.top < selectedBox.bottom || floatingBox.left < 0 || floatingBox.right > innerWidth) throw Error('Selection toolbar is not aligned below selected text');
+        document.getElementById('format-bold').click();
         if (content.querySelector('strong')?.textContent !== 'Hello') throw Error('Bold command failed');
+        document.getElementById('copy').focus(); refreshTools();
+        if (!document.getElementById('format-actions').hidden) throw Error('Selection toolbar remained open after editor lost focus');
         sourceToggle.click();
         if (!content.hidden || source.hidden || source.value !== ${JSON.stringify(transferredText)}) throw Error('Original source did not open separately');
         sourceToggle.click();
@@ -285,6 +295,8 @@ async function main() {
         if (content.querySelector('strong')) throw Error('Regenerate did not reset formatting');
         editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First item' }] }] });
         editor.commands.setTextSelection({ from: 1, to: 6 });
+        await new Promise(resolve => setTimeout(resolve, 30)); refreshTools();
+        if (document.getElementById('format-actions').hidden) throw Error('List tools were not shown for selected text');
         document.getElementById('list-bullet').click();
         if (editor.getJSON().content[0].type !== 'bulletList') throw Error('Bullet list tool failed');
         document.getElementById('list-ordered').click();
@@ -295,7 +307,7 @@ async function main() {
         if (editor.getJSON().content[0].content[0].attrs.checked !== true) throw Error('Checklist checkbox did not toggle');
         if (!exportHTML().includes('☑') || exportHTML().includes('<input')) throw Error('Checklist copy did not preserve its checked state as safe text');
         editor.commands.setTextSelection({ from: 3, to: 8 });
-        document.getElementById('format-underline-main').click();
+        document.getElementById('format-underline').click();
         if (!content.querySelector('u')) throw Error('Underline tool failed');
         const directPaste = new DataTransfer(); directPaste.setData('text/plain', 'Second item');
         content.querySelector('.ProseMirror').dispatchEvent(new ClipboardEvent('paste', { clipboardData: directPaste, cancelable: true, bubbles: true }));
@@ -319,7 +331,7 @@ async function main() {
         if (safePos < 0) throw Error('Table cell text position missing');
         editor.commands.insertContentAt({ from: safePos, to: safePos + 4 }, 'Clean');
         editor.commands.setTextSelection({ from: safePos, to: safePos + 5 });
-        document.getElementById('format-italic-main').click();
+        document.getElementById('format-italic').click();
         if (content.querySelector('th em')?.textContent !== 'Clean') throw Error('Direct table edit or italic formatting failed');
         let clipboardItems;
         Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write: async items => { clipboardItems = items; } } });
