@@ -112,7 +112,7 @@ async function main() {
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
         if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
         if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
-        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('browser by default') || !privacy.textContent.includes('sends selected text only after you confirm')) throw Error('Privacy note is not visible');
+        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('browser by default') || !privacy.textContent.includes('text stays in your browser') || /AI organization/u.test(privacy.textContent)) throw Error('Privacy note is not visible');
         if (!credit || credit.href !== 'https://simplesmart.com.au/' || !credit.rel.includes('noopener') || !credit.rel.includes('noreferrer')) throw Error('Developer link is missing');
         if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
         if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
@@ -131,16 +131,8 @@ async function main() {
         if (!logoLink || new URL(logoLink.href).pathname !== '/' || !editorLogo?.complete || !editorLogo.naturalWidth) throw Error('Editor home link or logo failed to load');
         const editor = document.getElementById('text');
         const choice = document.getElementById('save-drafts');
+        if (document.getElementById('organize') || document.getElementById('ai-organize') || document.getElementById('organize-panel')) throw Error('Organize tools remain in Clean Text');
         if (!editor || !choice || !choice.checked || editor.value || document.getElementById('save-status').textContent !== 'Saved in this browser only') throw Error('Draft saving default did not load');
-        const beforeOrganize = 'The firm works in metropolitanSydney,partnering with others.';
-        editor.value = beforeOrganize; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        document.getElementById('organize').click();
-        const review = document.getElementById('organize-panel');
-        if (review.hidden || document.getElementById('organize-before').textContent !== beforeOrganize || !document.getElementById('organize-after').textContent.includes('metropolitan Sydney, partnering')) throw Error('Live organize preview failed');
-        document.getElementById('organize-apply').click();
-        if (review.hidden !== true || !editor.value.includes('metropolitan Sydney, partnering')) throw Error('Live organize apply failed');
-        document.getElementById('undo').click();
-        if (editor.value !== beforeOrganize) throw Error('Live organize undo failed');
         editor.value = 'Private draft'; editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
         await new Promise(resolve => setTimeout(resolve, 350));
         if (localStorage.getItem('plain-text-cleaner.document.v1') !== 'Private draft') throw Error('Default draft was not saved');

@@ -1,4 +1,4 @@
-// Regenerate the static CSP hashes after editing either HTML page.
+// Regenerate the static CSP hashes after editing an HTML page.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -26,7 +26,7 @@ const policy = [
   `style-src-elem 'self' ${styleSources}`,
   "style-src-attr 'none'",
   "img-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'none'",
   "font-src 'self'",
   "media-src 'none'",
   "worker-src 'none'",
@@ -38,7 +38,6 @@ const policy = [
 ].join('; ');
 const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
-  functions: { 'api/organize.mjs': { maxDuration: 30 } },
   redirects: [
     { source: '/plain-text-cleaner.html', destination: '/editor', permanent: true },
     { source: '/document.html', destination: '/document', permanent: true }
