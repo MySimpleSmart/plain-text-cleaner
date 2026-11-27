@@ -78,7 +78,7 @@
   <main class="workspace">
     <section class="source-pane" aria-labelledby="source-title">
       <div class="pane-heading"><h1 id="source-title">Source</h1><span>Editable text</span></div>
-      <p class="source-note">Paste text, tables, lists or LaTeX. The document updates in your browser.</p>
+      <p class="source-note">Paste text, tables, lists or LaTeX, or send cleaned text from Clean Text. The document updates in your browser.</p>
       <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false"></textarea>
       <p class="status" id="source-status">Nothing pasted yet</p>
     </section>
@@ -98,6 +98,7 @@
     const status = document.getElementById('document-status');
     const toast = document.getElementById('toast');
     const MAX_SOURCE = 100000;
+    const transferKey = 'plain-text-cleaner.document-transfer.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
     let blocks = [];
@@ -379,6 +380,14 @@
       clearTimeout(copyTimer);
       copyTimer = setTimeout(() => { copyButton.textContent = 'COPY'; copyButton.classList.remove('copied'); copyButton.disabled = !source.value.trim(); }, 2600);
     });
+    try {
+      const transferred = sessionStorage.getItem(transferKey);
+      if (transferred !== null) {
+        sessionStorage.removeItem(transferKey);
+        if (transferred.length <= MAX_SOURCE) source.value = transferred;
+        else showToast('Document limit: 100,000 characters');
+      }
+    } catch { /* The document remains usable when browser storage is unavailable. */ }
     render();
   </script>
 </body>

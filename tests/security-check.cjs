@@ -190,14 +190,34 @@ async function main() {
     await homeLoaded;
     const home = await send('Runtime.evaluate', { expression: "location.pathname === '/' && Boolean(document.getElementById('open-editor'))", returnByValue: true }, sessionId);
     if (!home.result.value) throw Error('Clicking the editor logo did not return home');
+    const editorAgainLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Page.navigate', { url: new URL('/editor', base).href }, sessionId);
+    await editorAgainLoaded;
     const documentLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
-    await send('Page.navigate', { url: new URL('/document', base).href }, sessionId);
+    const transfer = await send('Runtime.evaluate', {
+      expression: `(() => {
+        const editor = document.getElementById('text');
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', '  Hello   world  ');
+        editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData, cancelable: true }));
+        const tableData = new DataTransfer();
+        tableData.setData('text/plain', 'Name\\tValue\\nA\\t42');
+        tableData.setData('text/html', '<table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>42</td></tr></table>');
+        editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: tableData, cancelable: true }));
+        if (!editor.value.includes('Hello world') || editor.value.includes('Hello   world') || !editor.value.includes('Name\\tValue')) throw Error('Clean Text did not clean the paste: ' + JSON.stringify(editor.value));
+        document.getElementById('document-link').click();
+        return editor.value;
+      })()`, returnByValue: true
+    }, sessionId);
+    if (transfer.exceptionDetails) throw Error(transfer.exceptionDetails.exception?.description || JSON.stringify(transfer.exceptionDetails));
+    const transferredText = transfer.result.value;
     await documentLoaded;
     const documentResult = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/document' || !window.katex) throw Error('Document page or renderer failed');
         if (window.cspViolations.length) throw Error('Document violated CSP on load: ' + JSON.stringify(window.cspViolations));
         const source = document.getElementById('source');
+        if (source.value !== ${JSON.stringify(transferredText)} || document.querySelectorAll('#content table tr').length !== 2 || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Clean Text to Document transfer failed');
         source.value = 'Name\\tValue\\nA\\t42\\n\\n1. First\\n2. Second\\n\\n\\\\[\\nPC2=\\\\sum_{i=1}^{7}b_i(x_i-\\\\bar{x}_i)\\n\\\\]';
         source.dispatchEvent(new Event('input', { bubbles: true }));
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -242,6 +262,11 @@ async function main() {
       const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
       fs.writeFileSync(process.env.DOCUMENT_SCREENSHOT, Buffer.from(data, 'base64'));
     }
+    const documentReloaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Page.reload', {}, sessionId);
+    await documentReloaded;
+    const oneShot = await send('Runtime.evaluate', { expression: "document.getElementById('source').value === '' && sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') === null", returnByValue: true }, sessionId);
+    if (!oneShot.result.value) throw Error('Transferred text persisted after Document reload');
     process.stdout.write(JSON.stringify(documentResult.result.value) + '\n');
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {

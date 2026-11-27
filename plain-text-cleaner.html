@@ -146,7 +146,7 @@
 </head>
 <body>
   <a class="brand-logo" href="/" aria-label="Back to home"><img src="text-cleaner-logo.svg" alt="" width="24" height="24" /></a>
-  <a class="document-link" href="/document">DOCUMENT</a>
+  <a id="document-link" class="document-link" href="/document" aria-label="Open cleaned text in Document" title="Open cleaned text in Document">TO DOCUMENT</a>
   <section class="toolbar" aria-label="Editor controls">
     <div class="actions">
       <button id="copy" class="primary" disabled>Copy</button>
@@ -952,6 +952,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
     const words = new Intl.Segmenter(undefined, { granularity: 'word' });
     const storageKey = 'plain-text-cleaner.document.v1';
+    const documentTransferKey = 'plain-text-cleaner.document-transfer.v1';
     const tableStorageKey = 'plain-text-cleaner.tables.v1';
     const saveDraftsKey = 'plain-text-cleaner.save-drafts.v1';
     const saveDraftsToggle = byId('save-drafts');
@@ -2602,6 +2603,16 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       showMessage(payload.html ? 'Copied with tables' : 'Copied!');
     });
     window.addEventListener('resize', resizePage);
+    byId('document-link').addEventListener('click', event => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        if (input.value) { event.preventDefault(); showMessage('Use a normal click to transfer text'); }
+        return;
+      }
+      if (!input.value) { try { sessionStorage.removeItem(documentTransferKey); } catch { /* Empty Document can still open. */ } return; }
+      if (input.value.length > 100000) { event.preventDefault(); showMessage('Document limit: 100,000 characters'); return; }
+      try { sessionStorage.setItem(documentTransferKey, input.value); }
+      catch { event.preventDefault(); showMessage('Could not transfer text in this browser'); }
+    });
     window.addEventListener('pagehide', () => { if (saveTimer) save(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
     update();
