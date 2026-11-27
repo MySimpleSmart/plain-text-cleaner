@@ -43,7 +43,9 @@
     textarea { display: block; width: 100%; min-height: max(320px, calc(100svh - 340px)); padding: 0; resize: none; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre-wrap; tab-size: 1; }
     textarea::placeholder { color: #9a9995; }
     .empty { margin: 0; color: #9a9995; font-size: 15px; }
-    .document-content { min-height: max(320px, calc(100svh - 340px)); }
+    .document-content { min-height: max(320px, calc(100svh - 340px)); cursor: text; }
+    .document-content:empty::before { content: 'Paste or type text here…'; color: #9a9995; pointer-events: none; }
+    .document-content .formula, .document-content .katex { cursor: default; }
     .document-content > *:first-child { margin-top: 0; }
     .document-content p, .document-content h1, .document-content h2, .document-content h3, .document-content h4, .document-content h5, .document-content h6 { margin: 0 0 1em; }
     .document-content h1 { font-size: 26px; }
@@ -87,19 +89,19 @@
   <section class="toolbar" aria-label="Document controls"><div class="actions">
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
-    <button id="source-toggle" class="icon-button" aria-label="Show source" title="Show source" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
+    <button id="source-toggle" class="icon-button" aria-label="Show original source" title="Show original source · editing it rebuilds the Document" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
     <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
   </div></section>
   <main>
     <div class="paper" id="paper">
-      <div id="content" class="document-content" tabindex="0" aria-label="Document. Paste here or open Source to type."><p class="empty">Paste text here, or open Source to type…</p></div>
+      <div id="content" class="document-content" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Document. Type or paste here."></div>
       <div id="format-actions" class="format-actions" role="group" aria-label="Style selected document text" hidden>
         <button id="format-bold" class="icon-button" type="button" aria-label="Bold selected text" title="Bold">B</button>
         <button id="format-italic" class="icon-button italic" type="button" aria-label="Italic selected text" title="Italic">I</button>
         <button id="format-underline" class="icon-button underline" type="button" aria-label="Underline selected text" title="Underline">U</button>
       </div>
-      <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
+      <textarea id="source" aria-label="Original document source. Editing it rebuilds the Document." placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
     </div>
     <div class="statusbar"><p class="status" id="document-status" role="status" aria-live="polite">Ready</p><p class="status" id="source-status">Nothing pasted yet</p></div>
   </main>
@@ -116,7 +118,7 @@
   </dialog>
   <dialog id="regenerate-dialog" class="confirm-dialog" aria-labelledby="regenerate-title">
     <h2 id="regenerate-title">Regenerate Document?</h2>
-    <p>This will rebuild the Document from its source and remove manual bold, italic and underline styling.</p>
+    <p>This will rebuild the Document from its source and remove direct edits and manual styling.</p>
     <div class="confirm-actions"><button id="regenerate-cancel" type="button">CANCEL</button><button id="regenerate-confirm" class="confirm" type="button">REGENERATE</button></div>
   </dialog>
   <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
@@ -133,6 +135,7 @@
     const transferKey = 'plain-text-cleaner.document-transfer.v1';
     const documentSessionKey = 'plain-text-cleaner.document-session.v1';
     const documentFormatKey = 'plain-text-cleaner.document-formats.v1';
+    const documentEditKey = 'plain-text-cleaner.document-edits.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
     let blocks = [];
@@ -144,6 +147,9 @@
     let formats = [];
     let formatSource = '';
     let selectedRange = null;
+    let editedHTML = null;
+    let lastSafeHTML = '';
+    let sourceFromEditor = false;
     const formatActions = document.getElementById('format-actions');
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
@@ -322,6 +328,7 @@
       for (const match of text.matchAll(pattern)) {
         parent.append(document.createTextNode(text.slice(cursor, match.index)));
         const formula = document.createElement('span');
+        formula.className = 'inline-formula'; formula.dataset.latex = match[1] || match[2]; formula.contentEditable = 'false';
         try { katex.render(match[1] || match[2], formula, { throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
         catch { formula.className = 'formula-error'; formula.textContent = match[0]; }
         parent.append(formula);
@@ -351,17 +358,9 @@
       }
     }
 
-    function render() {
-      clearTimeout(renderTimer);
-      if (formatSource !== source.value) { formats = []; formatSource = source.value; }
-      blocks = parseDocument(source.value);
-      content.replaceChildren();
-      if (!blocks.length) {
-        const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Paste text here, or open Source to type…';
-        content.append(empty);
-      }
-      for (const block of blocks) {
-        if (block.type === 'list') { renderList(block.items, content); continue; }
+    function appendBlocks(items, parent) {
+      for (const block of items) {
+        if (block.type === 'list') { renderList(block.items, parent); continue; }
         if (block.type === 'table') {
           const table = document.createElement('table'), body = document.createElement('tbody');
           for (const [index, cells] of block.rows.entries()) {
@@ -369,30 +368,94 @@
             for (const value of cells) { const cell = document.createElement(index === 0 ? 'th' : 'td'); cell.textContent = value; row.append(cell); }
             body.append(row);
           }
-          table.append(body); content.append(table); continue;
+          table.append(body); parent.append(table); continue;
         }
         if (block.type === 'formula') {
-          const holder = document.createElement('div'); holder.className = 'formula';
+          const holder = document.createElement('div'); holder.className = 'formula'; holder.dataset.latex = block.latex; holder.contentEditable = 'false';
           try { katex.render(block.latex, holder, { displayMode: true, throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
           catch { holder.classList.add('formula-error'); holder.textContent = '\\[' + block.latex + '\\]'; }
-          content.append(holder); continue;
+          parent.append(holder); continue;
         }
         const element = document.createElement(block.type === 'heading' ? `h${block.level}` : block.type === 'code' ? 'pre' : 'p');
         if (block.type === 'code') element.textContent = block.text;
         else renderInline(block.text, element);
-        content.append(element);
+        parent.append(element);
       }
-      for (const format of formats) applyFormatRange(format);
+    }
+
+    const allowedDocumentTags = new Set(['P', 'DIV', 'SPAN', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD', 'PRE', 'CODE', 'STRONG', 'EM', 'U', 'B', 'I', 'BLOCKQUOTE']);
+    const discardDocumentTags = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'IMG', 'SVG', 'AUDIO', 'VIDEO', 'FORM', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA', 'LINK', 'META']);
+    function safeContentHTML(root = content) {
+      const clean = root.cloneNode(true);
+      for (const formula of clean.querySelectorAll('[data-latex]')) formula.replaceChildren();
+      for (const element of [...clean.querySelectorAll('*')]) {
+        if (!element.isConnected && element.parentNode === null) continue;
+        if (!allowedDocumentTags.has(element.tagName)) {
+          if (discardDocumentTags.has(element.tagName)) element.remove();
+          else element.replaceWith(document.createTextNode(element.textContent || ''));
+          continue;
+        }
+        for (const attribute of [...element.attributes]) {
+          const name = attribute.name.toLowerCase();
+          const formula = element.classList.contains('formula') || element.classList.contains('inline-formula');
+          const keep = (name === 'class' && formula) || (name === 'data-latex' && formula && attribute.value.length <= 10000) ||
+            (name === 'contenteditable' && formula && attribute.value === 'false') ||
+            (name === 'start' && element.tagName === 'OL') || (name === 'value' && element.tagName === 'LI') ||
+            (['colspan', 'rowspan'].includes(name) && ['TH', 'TD'].includes(element.tagName));
+          if (!keep) element.removeAttribute(attribute.name);
+        }
+      }
+      return clean.innerHTML;
+    }
+
+    function hydrateFormulas(root) {
+      for (const formula of root.querySelectorAll('[data-latex]')) {
+        const latex = formula.dataset.latex || '';
+        try { katex.render(latex, formula, { displayMode: formula.classList.contains('formula'), throwOnError: true, trust: false, maxSize: 8, maxExpand: 1000 }); }
+        catch { formula.classList.add('formula-error'); formula.textContent = '\\[' + latex + '\\]'; }
+      }
+    }
+
+    function restoreEditedHTML() {
+      const holder = document.createElement('div');
+      holder.innerHTML = editedHTML;
+      holder.innerHTML = safeContentHTML(holder);
+      hydrateFormulas(holder);
+      editedHTML = safeContentHTML(holder);
+      content.replaceChildren(...holder.childNodes);
+    }
+
+    function safeExportHTML() {
+      const holder = document.createElement('div');
+      holder.innerHTML = safeContentHTML(content);
+      hydrateFormulas(holder);
+      return holder.innerHTML;
+    }
+
+    function refreshStatus() {
+      const currentText = editedHTML === null ? source.value : content.innerText;
+      document.getElementById('source-status').textContent = currentText ? `${currentText.length.toLocaleString()} characters` : 'Nothing pasted yet';
+      const tables = editedHTML === null ? blocks.filter(block => block.type === 'table').length : content.querySelectorAll('table').length;
+      const lists = editedHTML === null ? blocks.filter(block => block.type === 'list').length : content.querySelectorAll('ul, ol').length;
+      const formulas = editedHTML === null ? blocks.filter(block => block.type === 'formula').length : content.querySelectorAll('.formula').length;
+      const count = editedHTML === null ? blocks.length : content.children.length;
+      status.textContent = currentText ? `${count} blocks · ${tables} tables · ${lists} lists · ${formulas} formulas` : 'Ready';
+      clearButton.disabled = !source.value && !content.textContent.trim();
+      document.getElementById('regenerate').disabled = !source.value.trim();
+      copyButton.disabled = !currentText.trim() || copyButton.classList.contains('copied');
+    }
+
+    function render() {
+      clearTimeout(renderTimer);
+      if (formatSource !== source.value) { formats = []; editedHTML = null; sourceFromEditor = false; formatSource = source.value; }
+      blocks = parseDocument(source.value);
+      content.replaceChildren();
+      if (editedHTML !== null) restoreEditedHTML();
+      else { appendBlocks(blocks, content); for (const format of formats) applyFormatRange(format); }
       selectedRange = null;
       formatActions.hidden = true;
-      document.getElementById('source-status').textContent = source.value ? `${source.value.length.toLocaleString()} characters` : 'Nothing pasted yet';
-      const tables = blocks.filter(block => block.type === 'table').length;
-      const lists = blocks.filter(block => block.type === 'list').length;
-      const formulas = blocks.filter(block => block.type === 'formula').length;
-      status.textContent = source.value ? `${blocks.length} blocks · ${tables} tables · ${lists} lists · ${formulas} formulas` : 'Ready';
-      clearButton.disabled = !source.value;
-      document.getElementById('regenerate').disabled = !source.value.trim();
-      copyButton.disabled = !source.value.trim() || copyButton.classList.contains('copied');
+      lastSafeHTML = safeContentHTML(content);
+      refreshStatus();
     }
 
     function applyFormatRange({ start, end, tag }) {
@@ -443,8 +506,16 @@
         const start = before.toString().length;
         const end = start + selectedRange.toString().length;
         if (end <= start) return;
-        formats.push({ start, end, tag });
-        render();
+        if (editedHTML !== null) {
+          applyFormatRange({ start, end, tag });
+          editedHTML = safeContentHTML(content);
+          lastSafeHTML = editedHTML;
+          selectedRange = null;
+          formatActions.hidden = true;
+        } else {
+          formats.push({ start, end, tag });
+          render();
+        }
         keepDocumentInTab();
         showToast(tag === 'strong' ? 'Bold applied' : tag === 'em' ? 'Italic applied' : 'Underline applied');
       });
@@ -459,10 +530,12 @@
     function keepDocumentInTab() {
       clearTimeout(sessionTimer);
       try {
-        if (source.value) sessionStorage.setItem(documentSessionKey, source.value);
+        if (source.value || editedHTML !== null) sessionStorage.setItem(documentSessionKey, source.value);
         else sessionStorage.removeItem(documentSessionKey);
         if (source.value && formats.length) sessionStorage.setItem(documentFormatKey, JSON.stringify({ source: source.value, formats }));
         else sessionStorage.removeItem(documentFormatKey);
+        if (editedHTML !== null) sessionStorage.setItem(documentEditKey, JSON.stringify({ source: source.value, html: editedHTML, sourceFromEditor }));
+        else sessionStorage.removeItem(documentEditKey);
         return true;
       } catch { return false; }
     }
@@ -473,8 +546,8 @@
       source.hidden = !enabled;
       content.hidden = enabled;
       sourceToggle.setAttribute('aria-pressed', String(enabled));
-      sourceToggle.setAttribute('aria-label', enabled ? 'Show document' : 'Show source');
-      sourceToggle.title = enabled ? 'Show document' : 'Show source';
+      sourceToggle.setAttribute('aria-label', enabled ? 'Show document' : 'Show original source');
+      sourceToggle.title = enabled ? 'Show document' : 'Show original source · editing it rebuilds the Document';
       if (enabled) source.focus({ preventScroll: true });
       else { render(); content.focus({ preventScroll: true }); }
     }
@@ -485,6 +558,16 @@
       const start = sourceMode ? source.selectionStart : source.value.length;
       const end = sourceMode ? source.selectionEnd : source.value.length;
       const insert = sourceMode || !source.value.trim() ? value : '\n\n' + value;
+      if (!sourceMode && editedHTML !== null) {
+        if (content.innerText.length + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
+        appendBlocks(parseDocument(value), content);
+        if (sourceFromEditor) { source.value = content.innerText; formatSource = source.value; }
+        editedHTML = safeContentHTML(content);
+        lastSafeHTML = editedHTML;
+        refreshStatus();
+        keepDocumentInTab();
+        return true;
+      }
       if (source.value.length - (end - start) + insert.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
       source.setRangeText(insert, start, end, 'end');
       render();
@@ -492,7 +575,35 @@
       return true;
     }
 
-    source.addEventListener('input', () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 80); clearTimeout(sessionTimer); sessionTimer = setTimeout(keepDocumentInTab, 200); });
+    content.addEventListener('beforeinput', event => {
+      if (event.inputType.startsWith('insert') && content.textContent.length + (event.data?.length || 0) > MAX_SOURCE) {
+        event.preventDefault(); showToast('Document limit: 100,000 characters');
+      }
+    });
+    content.addEventListener('input', () => {
+      if (content.textContent.length > MAX_SOURCE) {
+        editedHTML = lastSafeHTML;
+        restoreEditedHTML();
+        showToast('Document limit: 100,000 characters');
+        return;
+      }
+      editedHTML = safeContentHTML(content);
+      lastSafeHTML = editedHTML;
+      formats = [];
+      if (!source.value || sourceFromEditor) {
+        sourceFromEditor = true;
+        source.value = content.innerText;
+        formatSource = source.value;
+      }
+      refreshStatus();
+      keepDocumentInTab();
+    });
+
+    source.addEventListener('input', () => {
+      if (source.value !== formatSource) { editedHTML = null; formats = []; sourceFromEditor = false; }
+      clearTimeout(renderTimer); renderTimer = setTimeout(render, 80);
+      clearTimeout(sessionTimer); sessionTimer = setTimeout(keepDocumentInTab, 200);
+    });
     source.addEventListener('paste', event => {
       const plain = event.clipboardData?.getData('text/plain') || '';
       const html = event.clipboardData?.getData('text/html') || '';
@@ -508,16 +619,17 @@
       event.preventDefault();
       insertValue(plain, html);
     });
+    content.addEventListener('drop', event => { event.preventDefault(); showToast('Use Paste to add text to Document'); });
     sourceToggle.addEventListener('click', () => setSourceMode(!sourceMode));
     const regenerateDialog = document.getElementById('regenerate-dialog');
     document.getElementById('regenerate').addEventListener('click', () => {
       if (!source.value.trim()) return;
-      if (formats.length) regenerateDialog.showModal();
+      if (formats.length || editedHTML !== null) regenerateDialog.showModal();
       else { render(); showToast('Document regenerated from source'); }
     });
     document.getElementById('regenerate-cancel').addEventListener('click', () => regenerateDialog.close());
     document.getElementById('regenerate-confirm').addEventListener('click', () => {
-      regenerateDialog.close(); formats = []; render(); keepDocumentInTab(); showToast('Document regenerated from source');
+      regenerateDialog.close(); formats = []; editedHTML = null; render(); keepDocumentInTab(); showToast('Document regenerated from source');
     });
     pasteButton.addEventListener('click', async () => {
       try {
@@ -553,15 +665,17 @@
     document.getElementById('clear-confirm').addEventListener('click', () => {
       clearDialog.close();
       source.value = '';
-      keepDocumentInTab();
+      editedHTML = null; formats = []; sourceFromEditor = false;
       render();
+      keepDocumentInTab();
       setSourceMode(false);
       showToast('Document cleared');
     });
     copyButton.addEventListener('click', async () => {
-      if (!source.value.trim()) return;
-      const plain = source.value;
-      const html = `<html><head><meta charset="utf-8"></head><body>${content.innerHTML}</body></html>`;
+      if (sourceMode && source.value !== formatSource) render();
+      if (!source.value.trim() && !content.textContent.trim()) return;
+      const plain = editedHTML === null ? source.value : content.innerText;
+      const html = `<html><head><meta charset="utf-8"></head><body>${safeExportHTML()}</body></html>`;
       try {
         if (navigator.clipboard?.write && window.ClipboardItem) {
           await navigator.clipboard.write([new ClipboardItem({
@@ -573,7 +687,7 @@
       copyButton.textContent = 'COPIED'; copyButton.classList.add('copied'); copyButton.disabled = true;
       showToast('Copied with document structure');
       clearTimeout(copyTimer);
-      copyTimer = setTimeout(() => { copyButton.textContent = 'COPY'; copyButton.classList.remove('copied'); copyButton.disabled = !source.value.trim(); }, 2600);
+      copyTimer = setTimeout(() => { copyButton.textContent = 'COPY'; copyButton.classList.remove('copied'); refreshStatus(); }, 2600);
     });
     try {
       const transferred = sessionStorage.getItem(transferKey);
@@ -586,6 +700,11 @@
       const savedFormats = transferred === null ? JSON.parse(sessionStorage.getItem(documentFormatKey) || 'null') : null;
       if (savedFormats?.source === source.value && Array.isArray(savedFormats.formats) && savedFormats.formats.length <= 1000) {
         formats = savedFormats.formats.filter(item => ['strong', 'em', 'u'].includes(item.tag) && Number.isSafeInteger(item.start) && Number.isSafeInteger(item.end) && item.start >= 0 && item.end <= 200000);
+      }
+      const savedEdit = transferred === null ? JSON.parse(sessionStorage.getItem(documentEditKey) || 'null') : null;
+      if (savedEdit?.source === source.value && typeof savedEdit.html === 'string' && savedEdit.html.length <= 2000000) {
+        editedHTML = savedEdit.html;
+        sourceFromEditor = savedEdit.sourceFromEditor === true;
       }
       formatSource = source.value;
     } catch { /* The document remains usable when browser storage is unavailable. */ }
