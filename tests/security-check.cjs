@@ -272,6 +272,17 @@ async function main() {
       const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
       fs.writeFileSync(process.env.TABLE_SCREENSHOT, Buffer.from(data, 'base64'));
     }
+    if (process.env.PAGE_SCREENSHOT) {
+      await send('Runtime.evaluate', { expression: `new Promise(resolve => {
+        for (const id of ['document-page-view', 'document-line-numbers']) {
+          const toggle = document.getElementById(id); toggle.checked = true;
+          toggle.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        setTimeout(resolve, 100);
+      })`, awaitPromise: true, returnByValue: true }, sessionId);
+      const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+      fs.writeFileSync(process.env.PAGE_SCREENSHOT, Buffer.from(data, 'base64'));
+    }
     const documentResult = await send('Runtime.evaluate', {
       expression: `(async () => {
         if (location.pathname !== '/document' || !window.documentAppReady || !window.createDocumentEditor) throw Error('Document engine did not load');
@@ -282,6 +293,30 @@ async function main() {
         if (source.value !== ${JSON.stringify(transferredText)} || content.querySelectorAll('table tr').length !== 3 || !content.textContent.includes('Hello world')) throw Error('Clean Text transfer or table parsing failed');
         if (!documentText().includes('Variable' + String.fromCharCode(9) + 'CV' + String.fromCharCode(10) + 'x1' + String.fromCharCode(9) + '0.0742')) throw Error('Plain text table copy lost row boundaries: ' + JSON.stringify(documentText()));
         if (!source.hidden || content.hidden || !content.querySelector('.ProseMirror')) throw Error('Document did not open as an editable page');
+        const settleLayout = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        document.querySelector('#document-settings summary').click();
+        if (!document.getElementById('document-settings').open) throw Error('Document page settings did not open');
+        const pageView = document.getElementById('document-page-view');
+        const lineToggle = document.getElementById('document-line-numbers');
+        pageView.checked = true; pageView.dispatchEvent(new Event('change', { bubbles: true }));
+        lineToggle.checked = true; lineToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        const topToolbar = document.querySelector('input[name="document-toolbar-position"][value="top"]');
+        topToolbar.checked = true; topToolbar.dispatchEvent(new Event('change', { bubbles: true }));
+        await settleLayout();
+        if (!document.body.classList.contains('document-toolbar-top') || document.querySelector('.toolbar').getBoundingClientRect().top > 32 || document.querySelector('.settings-panel').getBoundingClientRect().top < document.querySelector('.toolbar').getBoundingClientRect().bottom) throw Error('Document toolbar did not move to the top with its settings panel below it');
+        document.getElementById('document-settings').open = false;
+        await settleLayout();
+        const numberGutter = document.getElementById('line-numbers');
+        if (!document.body.classList.contains('document-page-view') || document.querySelectorAll('#page-sheets .page-sheet').length < 1 || numberGutter.hidden || numberGutter.children.length < 3 || numberGutter.firstElementChild.textContent !== '#1') throw Error('Document page view or visual line numbers failed');
+        const initialLineCount = numberGutter.children.length;
+        const originalDocument = editor.getJSON();
+        editor.commands.setContent({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Sentence '.repeat(1200) }] }] });
+        await settleLayout();
+        if (document.querySelectorAll('#page-sheets .page-sheet').length < 2 || numberGutter.children.length < 20) throw Error('Long Document did not create multiple pages or wrapped line numbers');
+        editor.commands.setContent(originalDocument, { emitUpdate: false });
+        setFromSource();
+        await settleLayout();
+        if (source.value !== ${JSON.stringify(transferredText)} || content.querySelectorAll('table tr').length !== 3) throw Error('Page settings changed Document content');
         editor.chain().focus().setTextSelection(1).run();
         document.getElementById('insert-table').click();
         if (!document.getElementById('insert-table-dialog').open) throw Error('Insert table dialog did not open');
@@ -293,6 +328,8 @@ async function main() {
         document.getElementById('insert-table-confirm').click();
         const newTable = [...content.querySelectorAll('table')].find(table => table.rows.length === 2 && table.rows[0].cells.length === 3);
         if (!newTable || document.getElementById('insert-table-dialog').open) throw Error('Configured table was not inserted');
+        await settleLayout();
+        if (numberGutter.children.length <= initialLineCount) throw Error('Line numbers did not update for the inserted table');
         const firstCell = newTable.querySelector('td');
         editor.chain().focus().setTextSelection(editor.view.posAtDOM(firstCell.querySelector('p'), 0)).insertContent('Edited').run();
         await new Promise(resolve => setTimeout(resolve, 30));
@@ -338,8 +375,12 @@ async function main() {
         document.getElementById('copy').focus(); refreshTools();
         if (!document.getElementById('format-actions').hidden) throw Error('Selection toolbar remained open after editor lost focus');
         sourceToggle.click();
+        await settleLayout();
+        if (!numberGutter.hidden) throw Error('Document line numbers remained over original source');
         if (!content.hidden || source.hidden || source.value !== ${JSON.stringify(transferredText)}) throw Error('Original source did not open separately');
         sourceToggle.click();
+        await settleLayout();
+        if (numberGutter.hidden) throw Error('Document line numbers did not return after source view');
         if (!content.querySelector('strong')) throw Error('Viewing source removed formatting');
         document.getElementById('regenerate').click();
         if (!document.getElementById('regenerate-dialog').open) throw Error('Regenerate did not warn about edits');
@@ -406,6 +447,7 @@ async function main() {
     await documentReloaded;
     const restored = await send('Runtime.evaluate', { expression: `(() => {
       if (document.getElementById('source').value !== ${JSON.stringify(documentText)} || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Document was not restored on reload');
+      if (!document.getElementById('document-page-view').checked || !document.getElementById('document-line-numbers').checked || !document.querySelector('input[name="document-toolbar-position"][value="top"]').checked) throw Error('Document page settings were not restored');
       if (document.querySelector('#content th em')?.textContent !== 'Clean') throw Error('Direct table edit and formatting were not restored on reload');
       document.getElementById('editor-link').click();
       if (!document.getElementById('return-dialog').open) throw Error('Return confirmation did not open');
@@ -480,6 +522,16 @@ async function main() {
       return true;
     })()`, returnByValue: true }, sessionId);
     if (legacy.exceptionDetails) throw Error(legacy.exceptionDetails.exception?.description || JSON.stringify(legacy.exceptionDetails));
+    const viewsOff = await send('Runtime.evaluate', { expression: `(async () => {
+      for (const id of ['document-page-view', 'document-line-numbers']) {
+        const toggle = document.getElementById(id); toggle.checked = false;
+        toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      if (document.body.classList.contains('document-page-view') || !document.getElementById('page-sheets').hidden || !document.getElementById('line-numbers').hidden || !document.querySelector('#content strong')) throw Error('Turning off page settings changed the document or left the view active');
+      return true;
+    })()`, awaitPromise: true, returnByValue: true }, sessionId);
+    if (viewsOff.exceptionDetails) throw Error(viewsOff.exceptionDetails.exception?.description || JSON.stringify(viewsOff.exceptionDetails));
     process.stdout.write(JSON.stringify(documentResult.result.value) + '\n');
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {

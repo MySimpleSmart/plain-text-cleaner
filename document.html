@@ -22,6 +22,7 @@
     .editor-link { position: fixed; top: 17px; left: 52px; z-index: 2; padding: 4px 6px; border-radius: 4px; color: #526068; font-size: 11px; font-weight: 700; text-decoration: none; }
     .editor-link:hover { background: #f1f1ef; color: #0b2027; }
     .toolbar { position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; z-index: 3; width: max-content; max-width: calc(100% - 32px); padding: 8px; transform: translateX(-50%); border: 1px solid #e7e7e5; border-radius: 8px; background: #ffffffed; box-shadow: 0 4px 20px #0b20270d, 0 1px 4px #0b202708; backdrop-filter: blur(16px); }
+    body.document-toolbar-top .toolbar { position: sticky; top: 16px; bottom: auto; left: auto; transform: none; margin: 16px auto 0; }
     .actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
     .copy { min-height: 38px; padding: 8px 18px; border-radius: 5px; background: #0b2027; color: #fff; font-size: 12px; font-weight: 700; transition: background-color .2s ease; }
     .copy:hover:not(:disabled) { background: #163641; }
@@ -42,11 +43,32 @@
     .format-actions[hidden] { display: none; }
     .tool-divider { flex: none; width: 1px; height: 22px; background: #e7e7e5; }
     .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
+    .settings { position: relative; }
+    .settings summary { list-style: none; cursor: pointer; }
+    .settings summary::-webkit-details-marker { display: none; }
+    .settings[open] summary { background: #edf1f0; }
+    .settings-panel { position: absolute; right: 0; bottom: calc(100% + 12px); width: 230px; padding: 16px; border: 1px solid #e7e7e5; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px #0b20271a; }
+    .document-toolbar-top .settings-panel { top: calc(100% + 12px); bottom: auto; }
+    .settings-panel fieldset { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; border: 0; }
+    .settings-panel legend { margin-bottom: 12px; font-size: 12px; font-weight: 700; }
+    .settings-panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .settings-panel input { width: 16px; height: 16px; margin: 0; accent-color: #0b2027; }
+    .toolbar-position-setting { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; }
+    .toolbar-position-setting > span { width: 100%; }
     main { padding: 32px 48px 180px; }
-    .paper { position: relative; max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
+    .document-toolbar-top main { padding-bottom: 48px; }
+    .paper { --page-pad-x: 0px; --page-pad-y: 8px; --line-gutter: 0px; position: relative; max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: var(--page-pad-y) var(--page-pad-x); padding-left: calc(var(--page-pad-x) + var(--line-gutter)); overflow-wrap: anywhere; }
+    .paper.with-line-numbers { --line-gutter: 58px; }
+    .page-sheets { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+    .page-sheet { position: absolute; left: 0; right: 0; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; box-shadow: 0 2px 10px #0b202708; }
+    .page-sheet::after { content: attr(data-page); position: absolute; right: 12px; bottom: 8px; color: #a3a29e; font-size: 11px; }
+    .line-numbers { position: absolute; top: var(--page-pad-y); bottom: var(--page-pad-y); left: var(--page-pad-x); z-index: 2; width: calc(var(--line-gutter) - 12px); border-right: 1px solid #e7e7e5; pointer-events: none; user-select: none; }
+    .line-numbers > div { position: absolute; right: 16px; color: #a3a29e; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    @media screen { body.document-page-view { background: #f3f3f1; } .document-page-view main { padding-top: 72px; } .document-page-view .paper { --page-pad-x: 48px; --page-pad-y: 48px; max-width: 794px; } }
     .document-content, textarea { font-size: 16px; line-height: 1.75; }
+    .document-content, textarea { position: relative; z-index: 1; }
     .document-content:focus, textarea:focus { outline: none; }
-    textarea { display: block; width: 100%; min-height: max(320px, calc(100svh - 340px)); padding: 0; resize: none; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre-wrap; tab-size: 1; }
+    textarea { display: block; width: 100%; min-height: max(320px, calc(100svh - 340px)); padding: 0; resize: none; overflow: hidden; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre-wrap; tab-size: 1; }
     textarea::placeholder { color: #9a9995; }
     .empty { margin: 0; color: #9a9995; font-size: 15px; }
     .document-content { min-height: max(320px, calc(100svh - 340px)); cursor: text; }
@@ -114,9 +136,12 @@
     <button id="source-toggle" class="icon-button" aria-label="Show original source" title="Show original source · editing it rebuilds the Document" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
     <button id="regenerate" class="icon-button" disabled aria-label="Regenerate from source" title="Regenerate from source"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6M20 4v7h-7"/></svg></button>
     <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+    <details id="document-settings" class="settings"><summary class="icon-button" aria-label="Document settings" title="Document settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h3m4 0h9M4 12h9m4 0h3M4 18h3m4 0h9"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></summary><div class="settings-panel"><fieldset><legend>Page settings</legend><label><input id="document-line-numbers" type="checkbox">Line numbers</label><label><input id="document-page-view" type="checkbox">Page view</label><div class="toolbar-position-setting" role="radiogroup" aria-label="Toolbar position"><span>Toolbar</span><label><input type="radio" name="document-toolbar-position" value="bottom" checked>Bottom</label><label><input type="radio" name="document-toolbar-position" value="top">Top</label></div></fieldset></div></details>
   </div></section>
   <main>
     <div class="paper" id="paper">
+      <div id="page-sheets" class="page-sheets" aria-hidden="true" hidden></div>
+      <div id="line-numbers" class="line-numbers" aria-hidden="true" hidden></div>
       <div id="content" class="document-content" aria-label="Document editor"></div>
       <div id="format-actions" class="format-actions" role="group" aria-label="Document editing actions" hidden>
         <div id="text-actions" class="action-row" role="group" aria-label="Selected text formatting" hidden>
@@ -371,6 +396,28 @@
 
     const stateKey = 'plain-text-cleaner.document-state.v2';
     const byId = id => document.getElementById(id);
+    const paper = byId('paper');
+    const pageSheets = byId('page-sheets');
+    const lineNumbers = byId('line-numbers');
+    const pageViewToggle = byId('document-page-view');
+    const lineNumbersToggle = byId('document-line-numbers');
+    const settings = byId('document-settings');
+    const pageViewKey = 'plain-text-cleaner.page-view.v1';
+    const lineNumbersKey = 'plain-text-cleaner.line-numbers.v1';
+    const toolbarPositionKey = 'plain-text-cleaner.toolbar-position.v1';
+    const toolbarPositionOptions = [...document.querySelectorAll('input[name="document-toolbar-position"]')];
+    let pageSheetLayout = '';
+    let viewFrame = 0;
+    let toolbarPosition = 'bottom';
+    try {
+      pageViewToggle.checked = localStorage.getItem(pageViewKey) === 'true';
+      lineNumbersToggle.checked = localStorage.getItem(lineNumbersKey) === 'true';
+      if (localStorage.getItem(toolbarPositionKey) === 'top') toolbarPosition = 'top';
+    } catch { /* View settings still work without browser storage. */ }
+    document.body.classList.toggle('document-page-view', pageViewToggle.checked);
+    document.body.classList.toggle('document-toolbar-top', toolbarPosition === 'top');
+    toolbarPositionOptions.find(option => option.value === toolbarPosition).checked = true;
+    paper.classList.toggle('with-line-numbers', lineNumbersToggle.checked);
     const emptyDoc = () => ({ type: 'doc', content: [{ type: 'paragraph' }] });
     let editor;
     let dirty = false;
@@ -518,6 +565,84 @@
       copyButton.disabled = editor.isEmpty || copyButton.classList.contains('copied');
     }
 
+    function syncLineNumbers() {
+      const enabled = lineNumbersToggle.checked && !sourceMode;
+      paper.classList.toggle('with-line-numbers', enabled);
+      lineNumbers.hidden = !enabled;
+      if (!enabled) return;
+      const root = editor.view.dom;
+      const rootTop = root.getBoundingClientRect().top;
+      const positions = [];
+      const range = document.createRange();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node;
+      while (positions.length < 6000 && (node = walker.nextNode())) {
+        if (!node.nodeValue || node.parentElement?.closest('.katex')) continue;
+        range.selectNodeContents(node);
+        for (const rect of range.getClientRects()) {
+          if (rect.width && rect.height) positions.push(Math.max(0, Math.round(rect.top - rootTop)));
+          if (positions.length === 6000) break;
+        }
+      }
+      for (const block of root.querySelectorAll('p,h1,h2,h3,h4,h5,h6,pre,[data-type="block-math"]')) {
+        if (positions.length === 6000) break;
+        if (block.matches('[data-type="block-math"]') || !block.textContent.trim()) positions.push(Math.max(0, Math.round(block.getBoundingClientRect().top - rootTop)));
+      }
+      positions.sort((a, b) => a - b);
+      const lines = [];
+      for (const top of positions) {
+        if (lines.length && top - lines.at(-1) <= 8) continue;
+        lines.push(top);
+        if (lines.length === 5000) break;
+      }
+      if (!lines.length) lines.push(0);
+      const fragment = document.createDocumentFragment();
+      for (const [index, top] of lines.entries()) {
+        const label = document.createElement('div');
+        label.textContent = `#${index + 1}`;
+        label.style.top = `${Math.max(0, top - 2)}px`;
+        fragment.append(label);
+      }
+      lineNumbers.replaceChildren(fragment);
+    }
+
+    function syncPageSheets() {
+      pageSheets.hidden = !pageViewToggle.checked;
+      if (pageSheets.hidden) {
+        paper.style.removeProperty('min-height');
+        if (pageSheetLayout) { pageSheets.replaceChildren(); pageSheetLayout = ''; }
+        return;
+      }
+      const inset = parseFloat(getComputedStyle(paper).paddingTop) || 0;
+      const step = Math.max(250, Math.floor((paper.clientWidth || 794) * Math.SQRT2 - 2 * inset));
+      const activeContent = sourceMode ? source : editor.view.dom;
+      const pages = Math.max(1, Math.ceil(activeContent.scrollHeight / step));
+      const height = pages * step + 2 * inset;
+      paper.style.minHeight = `${height}px`;
+      const layout = JSON.stringify([pages, step, inset]);
+      if (pageSheetLayout === layout) return;
+      const fragment = document.createDocumentFragment();
+      for (let index = 0; index < pages; index++) {
+        const sheet = document.createElement('div');
+        sheet.className = 'page-sheet'; sheet.dataset.page = index + 1;
+        const start = index ? inset + index * step + 2 : 0;
+        const end = index === pages - 1 ? height : inset + (index + 1) * step - 2;
+        sheet.style.top = `${start}px`; sheet.style.height = `${end - start}px`;
+        fragment.append(sheet);
+      }
+      pageSheets.replaceChildren(fragment); pageSheetLayout = layout;
+    }
+
+    function scheduleViewLayout() {
+      cancelAnimationFrame(viewFrame);
+      viewFrame = requestAnimationFrame(() => {
+        if (sourceMode) { source.style.height = 'auto'; source.style.height = `${source.scrollHeight}px`; }
+        syncLineNumbers();
+        syncPageSheets();
+        refreshTools();
+      });
+    }
+
     function tableContext() {
       const { $from } = editor.state.selection;
       for (let depth = $from.depth; depth > 0; depth--) {
@@ -542,7 +667,7 @@
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       const editorFocused = content.contains(document.activeElement) || formatActions.contains(document.activeElement);
-      const inEditor = !sourceMode && editorFocused && range && content.contains(range.commonAncestorContainer);
+      const inEditor = !sourceMode && !settings.open && editorFocused && range && content.contains(range.commonAncestorContainer);
       const selectedText = inEditor && !editor.state.selection.empty;
       const currentTable = sourceMode ? null : tableContext();
       const table = inEditor ? currentTable : null;
@@ -567,7 +692,9 @@
       const box = cell?.getBoundingClientRect() || range.getBoundingClientRect(), paper = byId('paper').getBoundingClientRect();
       formatActionsRule.style.left = `${Math.max(0, Math.min(box.left - paper.left, paper.width - formatActions.offsetWidth))}px`;
       const toolbarTop = document.querySelector('.toolbar').getBoundingClientRect().top;
-      formatActionsRule.style.top = `${(box.bottom + formatActions.offsetHeight > toolbarTop - 8 && box.top > formatActions.offsetHeight + 8 ? box.top - formatActions.offsetHeight - 8 : box.bottom + 8) - paper.top}px`;
+      const above = (box.bottom + formatActions.offsetHeight + 8 > innerHeight - 8 ||
+        (toolbarPosition === 'bottom' && box.bottom + formatActions.offsetHeight + 8 > toolbarTop - 8)) && box.top > formatActions.offsetHeight + 8;
+      formatActionsRule.style.top = `${(above ? box.top - formatActions.offsetHeight - 8 : box.bottom + 8) - paper.top}px`;
     }
 
     function setFromSource() {
@@ -575,7 +702,7 @@
       sourceSnapshot = source.value;
       dirty = false;
       sourceFromEditor = !source.value.trim();
-      refreshStatus(); refreshTools(); saveDocument();
+      refreshStatus(); refreshTools(); saveDocument(); scheduleViewLayout();
     }
 
     function legacyContent() {
@@ -664,6 +791,7 @@
       dirty = true;
       if (sourceFromEditor) { source.value = documentText(); sourceSnapshot = source.value; }
       refreshStatus(); refreshTools();
+      scheduleViewLayout();
       clearTimeout(saveTimer); saveTimer = setTimeout(saveDocument, 160);
     }, refreshTools);
     if (transferred === null) {
@@ -683,7 +811,25 @@
         }
       } catch { /* Invalid saved content falls back to the original source. */ }
     }
-    refreshStatus(); refreshTools(); saveDocument();
+    refreshStatus(); refreshTools(); saveDocument(); scheduleViewLayout();
+    document.fonts.ready.then(scheduleViewLayout);
+    window.addEventListener('resize', scheduleViewLayout);
+    for (const [toggle, key] of [[pageViewToggle, pageViewKey], [lineNumbersToggle, lineNumbersKey]]) {
+      toggle.addEventListener('change', () => {
+        if (toggle === pageViewToggle) document.body.classList.toggle('document-page-view', toggle.checked);
+        try { localStorage.setItem(key, String(toggle.checked)); } catch { /* The view still works without storage. */ }
+        scheduleViewLayout();
+      });
+    }
+    for (const option of toolbarPositionOptions) option.addEventListener('change', () => {
+      if (!option.checked) return;
+      toolbarPosition = option.value;
+      document.body.classList.toggle('document-toolbar-top', toolbarPosition === 'top');
+      try { localStorage.setItem(toolbarPositionKey, toolbarPosition); } catch { /* Keep the view setting for this session. */ }
+      scheduleViewLayout();
+    });
+    settings.addEventListener('toggle', () => { if (settings.open) formatActions.hidden = true; });
+    document.addEventListener('click', event => { if (!settings.contains(event.target)) settings.open = false; });
 
     const toolCommands = {
       bold: () => editor.chain().focus().toggleBold().run(),
@@ -754,12 +900,14 @@
       sourceToggle.title = sourceMode ? 'Show document' : 'Show original source · editing it rebuilds the Document';
       formatActions.hidden = true;
       refreshTools();
+      scheduleViewLayout();
       if (sourceMode) source.focus({ preventScroll: true });
       else editor.commands.focus();
     });
     source.addEventListener('input', () => {
       clearTimeout(sourceTimer);
       sourceTimer = setTimeout(() => { if (source.value !== sourceSnapshot) setFromSource(); }, 80);
+      scheduleViewLayout();
     });
     source.addEventListener('paste', event => {
       const plain = event.clipboardData?.getData('text/plain') || '';
