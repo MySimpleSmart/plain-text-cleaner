@@ -213,6 +213,25 @@ async function main() {
     if (transfer.exceptionDetails) throw Error(transfer.exceptionDetails.exception?.description || JSON.stringify(transfer.exceptionDetails));
     const transferredText = transfer.result.value;
     await documentLoaded;
+    const blankDocument = await send('Runtime.evaluate', { expression: "document.getElementById('source').value === '' && sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') === null", returnByValue: true }, sessionId);
+    if (!blankDocument.result.value) throw Error('Header navigation converted Clean Text without permission');
+    const editorReturnLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('editor-link').click()", returnByValue: true }, sessionId);
+    await editorReturnLoaded;
+    const conversion = await send('Runtime.evaluate', { expression: `(() => {
+      const editor = document.getElementById('text');
+      if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Header navigation lost Clean Text');
+      document.getElementById('convert-document').click();
+      if (!document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Convert confirmation missing');
+      document.getElementById('convert-cancel').click();
+      if (document.getElementById('convert-dialog').open || editor.value !== ${JSON.stringify(transferredText)}) throw Error('Cancel changed Clean Text');
+      document.getElementById('convert-document').click();
+      return true;
+    })()`, returnByValue: true }, sessionId);
+    if (conversion.exceptionDetails) throw Error(conversion.exceptionDetails.exception?.description || JSON.stringify(conversion.exceptionDetails));
+    const convertedLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('convert-confirm').click()", returnByValue: true }, sessionId);
+    await convertedLoaded;
     if (process.env.DOCUMENT_SCREENSHOT) {
       await send('Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true }, sessionId);
       const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
@@ -296,35 +315,34 @@ async function main() {
     const backLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     await send('Runtime.evaluate', { expression: "document.getElementById('return-confirm').click()", returnByValue: true }, sessionId);
     await backLoaded;
-    const existingChoice = await send('Runtime.evaluate', { expression: `(() => {
-      if (document.getElementById('text').value !== ${JSON.stringify(transferredText)} || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Clean Text was lost when returning');
-      document.getElementById('document-link').click();
-      if (!document.getElementById('document-choice').open) throw Error('Replace confirmation did not open');
-      document.getElementById('document-choice-cancel').click();
-      if (document.getElementById('document-choice').open || location.pathname !== '/editor') throw Error('Replace cancel did not keep Clean Text');
+    const existingLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    const headerSwitch = await send('Runtime.evaluate', { expression: `(() => {
+      const editor = document.getElementById('text');
+      if (editor.value !== ${JSON.stringify(transferredText)} || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Clean Text was lost when returning');
+      editor.value = 'Replacement draft'; editor.dispatchEvent(new Event('input', { bubbles: true }));
       document.getElementById('document-link').click();
       return true;
     })()`, returnByValue: true }, sessionId);
-    if (existingChoice.exceptionDetails) throw Error(existingChoice.exceptionDetails.exception?.description || JSON.stringify(existingChoice.exceptionDetails));
-    const existingLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
-    await send('Runtime.evaluate', { expression: "document.getElementById('document-choice-open').click()", returnByValue: true }, sessionId);
+    if (headerSwitch.exceptionDetails) throw Error(headerSwitch.exceptionDetails.exception?.description || JSON.stringify(headerSwitch.exceptionDetails));
     await existingLoaded;
     const existing = await send('Runtime.evaluate', { expression: `document.getElementById('source').value === ${JSON.stringify(documentText)}`, returnByValue: true }, sessionId);
-    if (!existing.result.value) throw Error('Opening existing Document replaced its content');
+    if (!existing.result.value) throw Error('Header navigation replaced existing Document');
     const returnAgainLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     await send('Runtime.evaluate', { expression: "document.getElementById('editor-link').click(); document.getElementById('return-confirm').click()", returnByValue: true }, sessionId);
     await returnAgainLoaded;
     const replaceChoice = await send('Runtime.evaluate', { expression: `(() => {
       const editor = document.getElementById('text');
-      if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Clean Text changed while opening existing Document');
-      editor.value = 'Replacement draft'; editor.dispatchEvent(new Event('input', { bubbles: true }));
-      document.getElementById('document-link').click();
-      if (!document.getElementById('document-choice').open) throw Error('Replace confirmation missing');
+      if (editor.value !== 'Replacement draft') throw Error('Clean Text changed while opening existing Document');
+      document.getElementById('convert-document').click();
+      if (!document.getElementById('convert-dialog').open || !document.getElementById('convert-description').textContent.includes('replace')) throw Error('Replacement warning missing');
+      document.getElementById('convert-cancel').click();
+      if (document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Cancel triggered conversion');
+      document.getElementById('convert-document').click();
       return true;
     })()`, returnByValue: true }, sessionId);
     if (replaceChoice.exceptionDetails) throw Error(replaceChoice.exceptionDetails.exception?.description || JSON.stringify(replaceChoice.exceptionDetails));
     const replacedLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
-    await send('Runtime.evaluate', { expression: "document.getElementById('document-choice-replace').click()", returnByValue: true }, sessionId);
+    await send('Runtime.evaluate', { expression: "document.getElementById('convert-confirm').click()", returnByValue: true }, sessionId);
     await replacedLoaded;
     const clearCheck = await send('Runtime.evaluate', { expression: `(() => {
       if (document.getElementById('source').value !== 'Replacement draft') throw Error('Confirmed replacement did not arrive');

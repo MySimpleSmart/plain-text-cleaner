@@ -226,7 +226,9 @@ PC2=\sum_{i=1}^{7}b_i(x_i-\bar{x}_i)
   });
   await test('clear is reversible and removes persisted draft', () => {
     save(); const before = input.value;
-    byId('clear').click(); equal(input.value, ''); equal(localStorage.getItem(storageKey), null);
+    byId('clear').click(); equal(byId('clear-text-dialog').open, true); equal(input.value, before);
+    byId('clear-text-cancel').click(); equal(input.value, before);
+    byId('clear').click(); byId('clear-text-confirm').click(); equal(input.value, ''); equal(localStorage.getItem(storageKey), null);
     byId('undo').click(); equal(input.value, before);
     byId('redo').click(); equal(input.value, '');
     equal(byId('copy').disabled, true); equal(byId('download').disabled, true);
@@ -1029,7 +1031,7 @@ In addition, MODUN has contributed to major public infrastructure projects, incl
     equal(exportedDocument().querySelector('th').textContent, 'GROUP');
     byId('case-default').click(); equal(exportedDocument().querySelector('th').textContent, 'Group');
     byId('case-title').click(); equal(exportedDocument().querySelector('table').rows[1].cells[0].textContent, 'Highest Group');
-    byId('clear').click(); equal(tables.length, 0);
+    byId('clear').click(); byId('clear-text-confirm').click(); equal(tables.length, 0);
     byId('undo').click(); equal(exportedDocument().querySelectorAll('tr').length, 5);
     byId('redo').click(); equal(input.value, ''); equal(tables.length, 0);
     pasteHTML(tableFixture); equal(input.value, original);
@@ -1112,7 +1114,7 @@ In addition, MODUN has contributed to major public infrastructure projects, incl
     type('One\nTwo'); equal(lineNumbers.childElementCount, 2);
     byId('undo').click(); equal(lineNumbers.childElementCount, 4);
     byId('redo').click(); equal(lineNumbers.childElementCount, 2);
-    byId('clear').click(); equal(lineNumbers.childElementCount, 1);
+    byId('clear').click(); byId('clear-text-confirm').click(); equal(lineNumbers.childElementCount, 1);
     lineNumbersToggle.click(); equal(lineNumbers.hidden, true);
     equal(input.clientWidth, before.width);
   });
