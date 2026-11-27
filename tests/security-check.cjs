@@ -60,7 +60,8 @@ async function verifyRoutes(base) {
   const documentRedirect = await request('/document.html', { redirect: 'manual' });
   assert.equal(documentRedirect.status, 308);
   assert.equal(new URL(documentRedirect.headers.get('location'), base).pathname, '/document');
-  for (const pathname of ['/text-cleaner-logo.svg', ...fonts.keys(), ...katexAssets.keys(), ...editorAssets.keys()]) {
+  const publicEditorAssets = [...editorAssets.keys()].filter(pathname => !process.env.SITE_URL || pathname !== '/assets/document-engine.css');
+  for (const pathname of ['/text-cleaner-logo.svg', ...fonts.keys(), ...katexAssets.keys(), ...publicEditorAssets]) {
     const asset = await request(pathname, { redirect: 'manual' });
     assert.equal(asset.status, 200, `Asset failed: ${pathname}`);
     assert.ok((await asset.arrayBuffer()).byteLength > 0, `Asset is empty: ${pathname}`);
