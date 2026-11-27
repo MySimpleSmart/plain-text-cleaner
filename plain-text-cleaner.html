@@ -30,6 +30,7 @@
     button:focus-visible, .settings summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
     button:disabled { opacity: .45; cursor: not-allowed; }
     button.icon-button, .settings summary.icon-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 38px; height: 38px; padding: 8px; }
+    button.icon-button[hidden] { display: none; }
     button.icon-button, .settings summary.icon-button { border-color: transparent; background: transparent; }
     button.icon-button:hover:not(:disabled), .settings summary.icon-button:hover { background: #f1f1ef; }
     .icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -65,6 +66,9 @@
     .organize-preview { max-height: 17vh; min-height: 52px; margin: 0; overflow: auto; padding: 8px 10px; border-radius: 4px; background: #fafaf9; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
     .organize-preview:focus { outline: none; }
     .organize-preview:focus-visible { box-shadow: inset 0 0 0 1px #aaa9a5; }
+    .ai-disclosure { margin: 0 0 10px; color: #37352f; font-size: 13px; line-height: 1.5; }
+    .ai-disclosure a { color: var(--accent); text-decoration: underline; }
+    .ai-disclosure[hidden], #organize-after-wrap[hidden], #organize-send[hidden], #organize-apply[hidden] { display: none; }
     fieldset { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; border: 0; padding: 0; margin: 0; }
     legend { padding: 0; margin-bottom: 14px; font-size: 12px; font-weight: 600; }
     .settings-panel fieldset + fieldset { margin-top: 20px; }
@@ -150,6 +154,9 @@
       </button>
       <button id="organize" class="icon-button" disabled aria-label="Organize text" title="Organize text">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5h12M3 9h9M3 15h12M3 19h9m5-11 1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></svg>
+      </button>
+      <button id="ai-organize" class="icon-button" hidden disabled aria-label="AI organize selected text" title="AI organize selected text">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5L12 2zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16z"/></svg>
       </button>
       <input id="file-input" class="sr-only" type="file" accept=".txt,.csv,.tsv,text/plain,text/csv,text/tab-separated-values" tabindex="-1" aria-hidden="true">
       <button id="download" class="icon-button" disabled aria-label="Download TXT" title="Download TXT">
@@ -240,7 +247,7 @@
     </section>
   </section>
   <main>
-    <p class="sr-only" id="editor-help">Paste text from anywhere. It is cleaned automatically.</p>
+    <p class="sr-only" id="editor-help">Paste text from anywhere. Basic cleaning happens in your browser. AI organization sends selected text only after you confirm.</p>
     <div class="paper">
       <div id="page-sheets" class="page-sheets" aria-hidden="true" hidden></div>
       <div id="line-numbers" class="line-numbers" aria-hidden="true" hidden></div>
@@ -271,13 +278,15 @@
         <div class="split-panel-header">
           <span id="organize-scope">Review document</span>
           <div class="split-panel-actions">
+            <button id="organize-send" class="icon-button" aria-label="Send selected text to AI" title="Send selected text to AI" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12h16m-7-7 7 7-7 7"/></svg></button>
             <button id="organize-apply" class="icon-button" aria-label="Apply organized text" title="Apply"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 12 5 5L20 6"/></svg></button>
             <button id="organize-cancel" class="icon-button" aria-label="Cancel organization" title="Cancel"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5 5 19"/></svg></button>
           </div>
         </div>
+        <p id="ai-disclosure" class="ai-disclosure" hidden>Send only the selected text to OpenAI? Basic cleaning stays in this browser. OpenAI may retain request data under its <a href="https://developers.openai.com/api/docs/guides/your-data" target="_blank" rel="noopener noreferrer">data policy</a>. Review the suggestion before applying it.</p>
         <div class="organize-comparison">
           <div><label for="organize-before">Before</label><pre id="organize-before" class="organize-preview" tabindex="0"></pre></div>
-          <div><label for="organize-after">After</label><pre id="organize-after" class="organize-preview" tabindex="0"></pre></div>
+          <div id="organize-after-wrap"><label for="organize-after">After</label><pre id="organize-after" class="organize-preview" tabindex="0"></pre></div>
         </div>
       </section>
     </div>
@@ -951,6 +960,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const MAX_TABLE_CELLS = 10000;
     const MAX_DOCUMENT_LINES = 10000;
     const MAX_ORGANIZE_CHARS = 100000;
+    const MAX_AI_CHARS = 12000;
+    let aiAvailable = false;
     let tables = [];
     let tableStateValue = '';
     let saveTimer;
@@ -1126,6 +1137,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       emptyHint.hidden = visibleText || !input.value;
       byId('clear').disabled = !hasText;
       byId('organize').disabled = !visibleText;
+      byId('ai-organize').disabled = !aiAvailable || !visibleText;
       for (const id of ['download', 'print']) byId(id).disabled = !visibleText;
       if (!visibleText) { copyRequest++; resetCopyButton(); }
       else if (copyButton.classList.contains('copied') && input.value !== copiedValue) resetCopyButton();
@@ -1214,7 +1226,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     });
     document.addEventListener('pointerdown', event => {
       if (!splitPanel.hidden && !splitPanel.contains(event.target) && event.target !== byId('split-joined')) closeSplit();
-      if (!organizePanel.hidden && !organizePanel.contains(event.target) && event.target !== byId('organize')) closeOrganize();
+      if (!organizePanel.hidden && !organizePanel.contains(event.target) && event.target !== byId('organize') && event.target !== byId('ai-organize')) closeOrganize();
       const inTool = splitPanel.contains(event.target) || organizePanel.contains(event.target) || findPanel.contains(event.target) || byId('case-actions').contains(event.target);
       const inEditor = input.parentElement.contains(event.target) && !inTool;
       caseFocusOutside = !(inEditor || byId('case-actions').contains(event.target));
@@ -1520,12 +1532,18 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     function closeOrganize(returnFocus = false) {
       if (organizePanel.hidden) return;
+      organizeState?.controller?.abort();
       organizePanel.hidden = true;
       input.parentElement.classList.remove('organize-open');
       organizePanel.style.removeProperty('top');
       organizePanel.style.removeProperty('left');
       byId('organize-before').textContent = '';
       byId('organize-after').textContent = '';
+      byId('organize-send').hidden = true;
+      byId('organize-send').disabled = false;
+      byId('organize-apply').hidden = false;
+      byId('organize-after-wrap').hidden = false;
+      byId('ai-disclosure').hidden = true;
       organizeState = null;
       if (returnFocus) input.focus({ preventScroll: true });
       updateCaseControls();
@@ -1648,7 +1666,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       closeSplit();
       closeFind(false);
       settings.open = false;
-      organizeState = { selection, ...proposed };
+      organizeState = { mode: 'local', selection, ...proposed };
       byId('organize-scope').textContent = selection.start === selection.end ? 'Organize document?' : 'Organize selection?';
       byId('organize-before').textContent = selection.value.slice(start, end);
       byId('organize-after').textContent = proposed.preview;
@@ -1659,10 +1677,83 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       revealTool(organizePanel);
       updateCaseControls();
     });
+    byId('ai-organize').addEventListener('click', () => {
+      if (composing || !hasVisibleText(input.value)) { showMessage('Add text first'); return; }
+      reconcileTables();
+      const selection = snapshot();
+      const { start, end } = selection;
+      if (start === end) { showMessage('Select text for AI organization'); return; }
+      if (end - start > MAX_AI_CHARS) { showMessage('Select up to 12,000 characters for AI'); return; }
+      const selected = selection.value.slice(start, end);
+      const containsTable = selection.tables.some(table => table.start < end && table.end > start);
+      if (containsTable || /\t|\\(?:[A-Za-z]+|\[|\()|\$\$|[=∑≈≤≥]|(?:^|\n)\s*(?:`{3,}|~{3,}|\|)/u.test(selected)) {
+        showMessage('Select prose outside tables, formulas and code');
+        return;
+      }
+      closeSplit();
+      closeOrganize();
+      closeFind(false);
+      settings.open = false;
+      organizeState = { mode: 'ai', phase: 'confirm', selection, start, end, edits: [], controller: null };
+      byId('organize-scope').textContent = 'AI organize selection?';
+      byId('organize-before').textContent = selected;
+      byId('organize-after').textContent = '';
+      byId('organize-send').hidden = false;
+      byId('organize-apply').hidden = true;
+      byId('organize-after-wrap').hidden = true;
+      byId('ai-disclosure').hidden = false;
+      organizePanel.hidden = false;
+      input.parentElement.classList.add('organize-open');
+      positionOrganizePanel();
+      byId('organize-send').focus({ preventScroll: true });
+      revealTool(organizePanel);
+      updateCaseControls();
+    });
+    byId('organize-send').addEventListener('click', async () => {
+      const state = organizeState;
+      if (!state || state.mode !== 'ai' || state.phase !== 'confirm') return;
+      if (input.value !== state.selection.value) { closeOrganize(); showMessage('Text changed · review again'); return; }
+      state.phase = 'loading';
+      state.controller = new AbortController();
+      byId('organize-send').disabled = true;
+      byId('organize-scope').textContent = 'AI is organizing…';
+      try {
+        const response = await fetch('/api/organize', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: state.selection.value.slice(state.start, state.end) }),
+          cache: 'no-store', credentials: 'omit', signal: state.controller.signal
+        });
+        const result = await response.json();
+        if (organizeState !== state) return;
+        if (!response.ok) { closeOrganize(); showMessage(result.error || 'AI is unavailable'); return; }
+        const proposed = result.text;
+        const original = state.selection.value.slice(state.start, state.end);
+        const letters = text => (text.normalize('NFC').match(/[\p{L}\p{N}]/gu) || []).join('').toLocaleLowerCase();
+        if (typeof proposed !== 'string' || proposed.length > 18000 || letters(proposed) !== letters(original)) {
+          closeOrganize(); showMessage('AI changed the text content · original kept'); return;
+        }
+        if (proposed === original) { closeOrganize(); showMessage('AI found no changes'); return; }
+        state.edits = [{ start: state.start, end: state.end, replacement: proposed }];
+        state.phase = 'review';
+        byId('organize-scope').textContent = 'Review AI suggestion';
+        byId('organize-after').textContent = proposed;
+        byId('organize-send').hidden = true;
+        byId('organize-apply').hidden = false;
+        byId('organize-after-wrap').hidden = false;
+        byId('ai-disclosure').hidden = true;
+        byId('organize-after').focus({ preventScroll: true });
+        revealTool(organizePanel);
+      } catch (error) {
+        if (organizeState !== state || error.name === 'AbortError') return;
+        closeOrganize();
+        showMessage('AI is unavailable · try again later');
+      }
+    });
     byId('organize-cancel').addEventListener('click', () => closeOrganize(true));
     byId('organize-apply').addEventListener('click', () => {
-      if (!organizeState || composing) return;
+      if (!organizeState || composing || (organizeState.mode === 'ai' && organizeState.phase !== 'review')) return;
       const { selection, edits, start, end } = organizeState;
+      const ai = organizeState.mode === 'ai';
       if (input.value !== selection.value) { closeOrganize(); showMessage('Text changed · review again'); return; }
       const delta = edits.reduce((total, edit) => total + edit.replacement.length - (edit.end - edit.start), 0);
       if (input.value.length + delta > MAX_DOCUMENT_CHARS) { showMessage('Document limit: 500,000 characters'); return; }
@@ -1674,7 +1765,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       closeOrganize();
       record();
       input.focus({ preventScroll: true });
-      showMessage('Text organized · Undo to restore');
+      showMessage(ai ? 'AI suggestion applied · Undo to restore' : 'Text organized · Undo to restore');
     });
 
     function closeSplit(returnFocus = false) {
@@ -2510,6 +2601,13 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     window.addEventListener('pagehide', () => { if (saveTimer) save(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
     update();
+    if (location.protocol === 'https:' || location.protocol === 'http:') {
+      fetch('/api/organize', { cache: 'no-store', credentials: 'omit' }).then(response => response.ok ? response.json() : null).then(result => {
+        aiAvailable = result?.available === true;
+        byId('ai-organize').hidden = !aiAvailable;
+        update();
+      }).catch(() => { /* Basic cleaning remains available without AI. */ });
+    }
   </script>
 </body>
 </html>

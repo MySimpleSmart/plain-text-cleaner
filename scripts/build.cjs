@@ -18,7 +18,7 @@ const policy = [
   `style-src ${hash(style[1])} ${hash(landingStyle[1])}`,
   "style-src-attr 'none'",
   "img-src 'self'",
-  "connect-src 'none'",
+  "connect-src 'self'",
   "font-src 'self'",
   "media-src 'none'",
   "worker-src 'none'",
@@ -30,6 +30,7 @@ const policy = [
 ].join('; ');
 const config = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
+  functions: { 'api/organize.mjs': { maxDuration: 30 } },
   redirects: [{ source: '/plain-text-cleaner.html', destination: '/editor', permanent: true }],
   rewrites: [
     { source: '/', destination: '/index.html' },

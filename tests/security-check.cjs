@@ -102,7 +102,7 @@ async function main() {
         if (document.querySelector('h1')?.textContent !== 'Text, without the mess.') throw Error('Landing introduction is missing');
         if (!logo || Math.abs(logo.getBoundingClientRect().left + logo.getBoundingClientRect().width / 2 - document.documentElement.clientWidth / 2) > 1) throw Error('Landing logo is not centered');
         if (!getComputedStyle(document.documentElement).fontFamily.includes('Ubuntu') || Array.from(document.fonts).filter(face => face.family === 'Ubuntu' && face.status === 'loaded').length < 2) throw Error('Ubuntu font was not loaded locally');
-        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Drafts are saved in this browser by default')) throw Error('Privacy note is not visible');
+        if (!privacy || getComputedStyle(privacy).backgroundColor !== 'rgb(242, 245, 244)' || !privacy.textContent.includes('Drafts are saved in this browser by default') || !privacy.textContent.includes('sends only selected text to OpenAI')) throw Error('Privacy note is not visible');
         if (!credit || credit.href !== 'https://simplesmart.com.au/' || !credit.rel.includes('noopener') || !credit.rel.includes('noreferrer')) throw Error('Developer link is missing');
         if (getComputedStyle(button).backgroundColor !== 'rgb(11, 32, 39)') throw Error('Landing stylesheet was blocked');
         if (document.documentElement.scrollWidth > window.innerWidth) throw Error('Landing overflows on mobile');
@@ -155,7 +155,7 @@ async function main() {
         await new Promise(resolve => setTimeout(resolve, 50));
         if (window.cspViolations.some(item => item.directive === 'style-src-attr')) throw Error('Printed tables used blocked inline styles: ' + JSON.stringify(window.cspViolations));
         const script = document.createElement('script'); script.textContent = 'window.injected=true'; document.body.append(script);
-        try { await fetch('/blocked'); } catch {}
+        try { await fetch('https://example.invalid/blocked'); } catch {}
         await new Promise(resolve => setTimeout(resolve, 50));
         if (window.injected || !window.cspViolations.some(item => item.directive === 'script-src-elem') || !window.cspViolations.some(item => item.directive === 'connect-src')) throw Error('CSP did not block injected script or network request');
         return { status: 'PASS', violations: window.cspViolations };

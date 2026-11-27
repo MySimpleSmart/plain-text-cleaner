@@ -836,6 +836,59 @@ In addition, MODUN has contributed to major public infrastructure projects, incl
     equal(input.value, preview);
     byId('undo').click(); equal(input.value, pasted);
   });
+  await test('AI organize sends only selected prose after confirmation, previews and undoes', async () => {
+    aiAvailable = true; byId('ai-organize').hidden = false; update();
+    const original = 'Keep before. metropolitanSydney,partnering Keep after.';
+    type(original);
+    const start = original.indexOf('metropolitanSydney');
+    const end = start + 'metropolitanSydney,partnering'.length;
+    input.setSelectionRange(start, end);
+    const previousFetch = window.fetch;
+    let sent;
+    try {
+      window.fetch = async (url, options) => {
+        equal(url, '/api/organize');
+        sent = JSON.parse(options.body).text;
+        return new Response(JSON.stringify({ text: 'metropolitan Sydney, partnering' }), { status: 200 });
+      };
+      byId('ai-organize').click();
+      equal(organizePanel.hidden, false);
+      equal(sent, undefined);
+      equal(byId('ai-disclosure').hidden, false);
+      equal(byId('organize-apply').hidden, true);
+      equal(byId('organize-after-wrap').hidden, true);
+      byId('organize-send').click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      equal(sent, 'metropolitanSydney,partnering');
+      equal(byId('organize-after').textContent, 'metropolitan Sydney, partnering');
+      equal(input.value, original);
+      byId('organize-apply').click();
+      equal(input.value, 'Keep before. metropolitan Sydney, partnering Keep after.');
+      byId('undo').click(); equal(input.value, original);
+    } finally { window.fetch = previousFetch; closeOrganize(); }
+  });
+  await test('AI organize protects formulas, size, failed requests and Cancel', async () => {
+    const previousFetch = window.fetch;
+    let calls = 0;
+    try {
+      window.fetch = async () => { calls++; return new Response(JSON.stringify({ error: 'AI is not configured yet' }), { status: 503 }); };
+      type('PC2=\\sum_{i=1}^{7}x_i'); input.select();
+      byId('ai-organize').click();
+      equal(organizePanel.hidden, true); equal(calls, 0);
+      type('a'.repeat(MAX_AI_CHARS + 1)); input.select();
+      byId('ai-organize').click();
+      equal(organizePanel.hidden, true); equal(calls, 0);
+      type('A  short paragraph.'); input.setSelectionRange(0, 0);
+      byId('ai-organize').click(); equal(organizePanel.hidden, true); equal(calls, 0);
+      input.select(); byId('ai-organize').click();
+      byId('organize-cancel').click(); equal(calls, 0); equal(input.value, 'A  short paragraph.');
+      input.select(); byId('ai-organize').click(); byId('organize-send').click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      equal(calls, 1); equal(organizePanel.hidden, true);
+      equal(message.textContent, 'AI is not configured yet');
+      equal(input.value, 'A  short paragraph.');
+    } finally { window.fetch = previousFetch; closeOrganize(); }
+  });
   await test('CV example uses one text editor and keeps its complete table on clipboard roundtrip', () => {
     const rows = [['Variable', 'CV'], ['x1', '0.0742'], ['x2', '0.0950'], ['x3', '0.0458 (Min)'], ['x4', '0.3521'], ['x5', '0.2387'], ['x6', '0.2026'], ['x7', '0.3541 (Max)']];
     type('');
