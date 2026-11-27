@@ -213,14 +213,16 @@ async function main() {
     const conversion = await send('Runtime.evaluate', { expression: `(() => {
       const editor = document.getElementById('text');
       if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Header navigation lost Clean Text');
-      if (!document.querySelector('.toolbar #convert-document') || !document.getElementById('convert-document').disabled) throw Error('Bottom Convert button missing or enabled without a selection');
-      editor.focus(); editor.select(); editor.dispatchEvent(new Event('select'));
+      if (!document.querySelector('.toolbar #convert-document') || document.getElementById('convert-document').disabled) throw Error('Bottom Convert button missing or disabled for Clean Text');
+      if (!document.getElementById('convert-selection').disabled) throw Error('Selection Convert enabled without a selection');
+      if (document.getElementById('convert-preview')) throw Error('Convert modal still contains a preview');
+      editor.focus(); editor.setSelectionRange(0, 5); editor.dispatchEvent(new Event('select'));
       if (document.getElementById('convert-document').disabled || document.getElementById('convert-selection').disabled) throw Error('Convert buttons are disabled for a valid selection');
       document.getElementById('convert-document').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       document.getElementById('convert-document').focus();
       if (document.getElementById('convert-document').disabled) throw Error('Bottom Convert disabled when focused after selecting text');
       document.getElementById('convert-document').click();
-      if (!document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Convert confirmation missing');
+      if (!document.getElementById('convert-dialog').open || !document.getElementById('convert-description').textContent.includes('All Clean Text') || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Whole-document Convert confirmation missing');
       document.getElementById('convert-cancel').click();
       if (document.getElementById('convert-dialog').open || editor.value !== ${JSON.stringify(transferredText)}) throw Error('Cancel changed Clean Text');
       document.getElementById('convert-document').click();
@@ -365,7 +367,7 @@ async function main() {
       editor.focus(); editor.setSelectionRange(12, 17); editor.dispatchEvent(new Event('select'));
       document.getElementById('convert-selection').click();
       if (!document.getElementById('convert-dialog').open || !document.getElementById('convert-description').textContent.includes('replace')) throw Error('Replacement warning missing');
-      if (document.getElementById('convert-preview').textContent !== 'draft') throw Error('Selection preview is wrong');
+      if (document.getElementById('convert-preview') || document.getElementById('convert-title').textContent !== 'Convert selection?') throw Error('Selection modal still contains a preview or the wrong title');
       document.getElementById('convert-cancel').click();
       if (document.getElementById('convert-dialog').open || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Cancel triggered conversion');
       document.getElementById('convert-selection').click();

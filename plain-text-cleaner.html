@@ -81,7 +81,6 @@
     .switch-dialog-actions button.replace:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
     .switch-dialog-actions .danger { background: #a22f2f; color: #fff; border-color: #a22f2f; }
     .switch-dialog-actions button.danger:hover:not(:disabled) { background: #862626; border-color: #862626; color: #fff; }
-    .convert-preview { max-height: 78px; overflow: hidden; margin: -6px 0 20px; padding: 10px 12px; border-left: 2px solid #d6dddd; border-radius: 0 5px 5px 0; background: #f7f8f7; color: #555a58; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
     .case-divider { width: 1px; height: 22px; margin: 0 2px; background: #e7e7e5; }
     @media (min-width: 1100px) { .toast { max-width: min(240px, calc((100% - var(--document-width, 760px)) / 2 - 32px)); } }
     @media (prefers-reduced-motion: reduce) { .toast { transition: none; transform: none; } }
@@ -159,7 +158,7 @@
       <button id="open-file" class="icon-button" aria-label="Open TXT, CSV or TSV file" title="Open TXT, CSV or TSV file">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v2M3 7h16a2 2 0 0 1 2 2l-2 10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2L1 9a2 2 0 0 1 2-2z"/></svg>
       </button>
-      <button id="convert-document" class="icon-button" disabled aria-label="Convert selected text to Document" title="Select text to convert to Document">
+      <button id="convert-document" class="icon-button" disabled aria-label="Convert all Clean Text to Document" title="Convert all Clean Text to Document">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h9l4 4v12H3zM12 4v4h4M7 12h5M7 16h5M16 15h5m-2-2 2 2-2 2"/></svg>
       </button>
       <input id="file-input" class="sr-only" type="file" accept=".txt,.csv,.tsv,text/plain,text/csv,text/tab-separated-values" tabindex="-1" aria-hidden="true">
@@ -288,9 +287,8 @@
   </main>
   <div id="message" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <dialog id="convert-dialog" class="switch-dialog" aria-labelledby="convert-title" tabindex="-1">
-    <h2 id="convert-title">Convert selection?</h2>
-    <p id="convert-description">Only the selected text will become a Document. Your Clean Text stays available.</p>
-    <div id="convert-preview" class="convert-preview" aria-label="Selected text preview"></div>
+    <h2 id="convert-title">Convert to Document?</h2>
+    <p id="convert-description">All Clean Text will become a Document. Your Clean Text stays available.</p>
     <div class="switch-dialog-actions">
       <button id="convert-cancel" type="button">CANCEL</button>
       <button id="convert-confirm" class="replace" type="button">CONVERT</button>
@@ -1152,6 +1150,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       const visibleText = hasVisibleText(input.value);
       emptyHint.hidden = visibleText || !input.value;
       byId('clear').disabled = !hasText;
+      byId('convert-document').disabled = !visibleText || input.value.length > 100000;
       for (const id of ['download', 'print']) byId(id).disabled = !visibleText;
       if (!visibleText) { copyRequest++; resetCopyButton(); }
       else if (copyButton.classList.contains('copied') && input.value !== copiedValue) resetCopyButton();
@@ -1184,7 +1183,6 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       byId('case-title').disabled = !available || selected === titleCase(selected);
       const canConvert = start !== end && !composing && hasVisibleText(input.value.slice(start, end)) && end - start <= 100000;
       byId('convert-selection').disabled = !canConvert;
-      byId('convert-document').disabled = !canConvert;
       if (!actions.hidden) {
         placeToolBelowText(actions, end);
         if (wasHidden) revealTool(actions);
@@ -2390,7 +2388,7 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
 
     let pendingConversion = '';
     function openDocument(replace) {
-      if (replace && (!pendingConversion || pendingConversion.length > 100000)) { showMessage('Select up to 100,000 characters'); return; }
+      if (replace && (!hasVisibleText(pendingConversion) || pendingConversion.length > 100000)) { showMessage('Document limit: 100,000 characters'); return; }
       if (!saveEditorSession()) { showMessage('Could not keep Clean Text in this tab'); return; }
       try {
         if (replace) sessionStorage.setItem(documentTransferKey, pendingConversion);
@@ -2403,23 +2401,23 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const convertDialog = byId('convert-dialog');
     byId('convert-cancel').addEventListener('click', () => convertDialog.close());
     byId('convert-confirm').addEventListener('click', () => openDocument(true));
-    function showConvertDialog() {
-      const selection = input.value.slice(input.selectionStart, input.selectionEnd);
-      if (!hasVisibleText(selection)) return;
-      if (selection.length > 100000) { showMessage('Select up to 100,000 characters'); return; }
+    function showConvertDialog(scope) {
+      const value = scope === 'selection' ? input.value.slice(input.selectionStart, input.selectionEnd) : input.value;
+      if (!hasVisibleText(value)) return;
+      if (value.length > 100000) { showMessage('Document limit: 100,000 characters'); return; }
       let existing;
       try { existing = sessionStorage.getItem(documentSessionKey); }
       catch { showMessage('Could not read Document in this browser'); return; }
-      pendingConversion = selection;
+      pendingConversion = value;
+      byId('convert-title').textContent = scope === 'selection' ? 'Convert selection?' : 'Convert to Document?';
       byId('convert-description').textContent = existing
-        ? 'This selection will replace your current Document. Your Clean Text stays available.'
-        : 'Only this selection will become a Document. Your Clean Text stays available.';
-      byId('convert-preview').textContent = selection.length > 180 ? selection.slice(0, 180) + '…' : selection;
+        ? `${scope === 'selection' ? 'The selected text' : 'All Clean Text'} will replace your current Document. Your Clean Text stays available.`
+        : `${scope === 'selection' ? 'The selected text' : 'All Clean Text'} will become a Document. Your Clean Text stays available.`;
       convertDialog.showModal();
       convertDialog.focus({ preventScroll: true });
     }
-    byId('convert-selection').addEventListener('click', showConvertDialog);
-    byId('convert-document').addEventListener('click', showConvertDialog);
+    byId('convert-selection').addEventListener('click', () => showConvertDialog('selection'));
+    byId('convert-document').addEventListener('click', () => showConvertDialog('all'));
     byId('document-link').addEventListener('click', event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         if (input.value) { event.preventDefault(); showMessage('Use a normal click to switch pages'); }
