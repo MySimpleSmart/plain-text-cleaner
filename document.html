@@ -59,6 +59,14 @@
     .status { margin: 0; }
     .toast { position: fixed; top: 16px; right: 20px; z-index: 10; max-width: 240px; padding: 8px 12px; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; box-shadow: 0 6px 20px #0b202718; font-size: 13px; opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; pointer-events: none; }
     .toast.visible { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+    .confirm-dialog { width: min(400px, calc(100% - 32px)); padding: 20px; border: 1px solid #e7e7e5; border-radius: 8px; color: #37352f; background: #fff; box-shadow: 0 12px 32px #0b202729; }
+    .confirm-dialog::backdrop { background: #0b20274d; }
+    .confirm-dialog h2 { margin: 0 0 8px; color: #0b2027; font-size: 17px; }
+    .confirm-dialog p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+    .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .confirm-actions button { min-height: 38px; padding: 8px 12px; border: 1px solid #d5d9df; border-radius: 5px; background: #fff; color: #0b2027; font-size: 12px; font-weight: 700; }
+    .confirm-actions button.confirm { border-color: #0b2027; background: #0b2027; color: #fff; }
+    .confirm-actions button.danger { border-color: #a22f2f; background: #a22f2f; color: #fff; }
     @media (max-width: 1279px) { .statusbar { position: static; max-width: 760px; margin: 12px auto 0; } }
     @media (max-width: 600px) { .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); } .actions { gap: 4px; } main { padding: 72px 24px 180px; } .paper, .document-content, textarea { min-height: 50svh; } }
     @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
@@ -66,7 +74,7 @@
 </head>
 <body>
   <a class="brand" href="/" aria-label="Back to home"><img src="/text-cleaner-logo.svg" alt="" width="24" height="24"></a>
-  <a class="editor-link" href="/editor">CLEAN TEXT</a>
+  <a id="editor-link" class="editor-link" href="/editor">CLEAN TEXT</a>
   <section class="toolbar" aria-label="Document controls"><div class="actions">
     <button id="copy" class="copy" disabled>COPY</button>
     <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
@@ -81,6 +89,16 @@
     <div class="statusbar"><p class="status" id="document-status" role="status" aria-live="polite">Ready</p><p class="status" id="source-status">Nothing pasted yet</p></div>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="return-dialog" class="confirm-dialog" aria-labelledby="return-title">
+    <h2 id="return-title">Back to Clean Text?</h2>
+    <p>Your Document will be kept in this tab. You can come back to it.</p>
+    <div class="confirm-actions"><button id="return-cancel" type="button">CANCEL</button><button id="return-confirm" class="confirm" type="button">CONTINUE</button></div>
+  </dialog>
+  <dialog id="clear-dialog" class="confirm-dialog" aria-labelledby="clear-title">
+    <h2 id="clear-title">Clear Document?</h2>
+    <p>This will remove the Document content from this tab.</p>
+    <div class="confirm-actions"><button id="clear-cancel" type="button">CANCEL</button><button id="clear-confirm" class="danger" type="button">CLEAR</button></div>
+  </dialog>
   <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
   <script id="document-app">
     const source = document.getElementById('source');
@@ -93,12 +111,14 @@
     const toast = document.getElementById('toast');
     const MAX_SOURCE = 100000;
     const transferKey = 'plain-text-cleaner.document-transfer.v1';
+    const documentSessionKey = 'plain-text-cleaner.document-session.v1';
     const MAX_TABLE_ROWS = 1000;
     const MAX_TABLE_COLUMNS = 50;
     let blocks = [];
     let renderTimer;
     let copyTimer;
     let toastTimer;
+    let sessionTimer;
     let sourceMode = false;
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
@@ -351,6 +371,15 @@
       toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000);
     }
 
+    function keepDocumentInTab() {
+      clearTimeout(sessionTimer);
+      try {
+        if (source.value) sessionStorage.setItem(documentSessionKey, source.value);
+        else sessionStorage.removeItem(documentSessionKey);
+        return true;
+      } catch { return false; }
+    }
+
     function setSourceMode(enabled) {
       sourceMode = enabled;
       source.hidden = !enabled;
@@ -371,10 +400,11 @@
       if (source.value.length - (end - start) + insert.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
       source.setRangeText(insert, start, end, 'end');
       render();
+      keepDocumentInTab();
       return true;
     }
 
-    source.addEventListener('input', () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 80); });
+    source.addEventListener('input', () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 80); clearTimeout(sessionTimer); sessionTimer = setTimeout(keepDocumentInTab, 200); });
     source.addEventListener('paste', event => {
       const plain = event.clipboardData?.getData('text/plain') || '';
       const html = event.clipboardData?.getData('text/html') || '';
@@ -406,7 +436,30 @@
         if (!insertValue(plain, html)) showToast(plain || html ? 'Document limit: 100,000 characters' : 'Clipboard is empty');
       } catch (error) { showToast(error.message === 'size' ? 'Clipboard content is too large' : 'Press Ctrl/Cmd+V to paste'); }
     });
-    clearButton.addEventListener('click', () => { source.value = ''; render(); setSourceMode(false); showToast('Document cleared'); });
+    const returnDialog = document.getElementById('return-dialog');
+    const clearDialog = document.getElementById('clear-dialog');
+    document.getElementById('editor-link').addEventListener('click', event => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        if (source.value) { event.preventDefault(); showToast('Use a normal click to keep Document'); }
+        return;
+      }
+      if (!source.value) return;
+      event.preventDefault();
+      if (!keepDocumentInTab()) { showToast('Could not keep Document in this tab'); return; }
+      returnDialog.showModal();
+    });
+    document.getElementById('return-cancel').addEventListener('click', () => returnDialog.close());
+    document.getElementById('return-confirm').addEventListener('click', () => { returnDialog.close(); location.assign('/editor'); });
+    clearButton.addEventListener('click', () => clearDialog.showModal());
+    document.getElementById('clear-cancel').addEventListener('click', () => clearDialog.close());
+    document.getElementById('clear-confirm').addEventListener('click', () => {
+      clearDialog.close();
+      source.value = '';
+      keepDocumentInTab();
+      render();
+      setSourceMode(false);
+      showToast('Document cleared');
+    });
     copyButton.addEventListener('click', async () => {
       if (!source.value.trim()) return;
       const plain = source.value;
@@ -426,13 +479,16 @@
     });
     try {
       const transferred = sessionStorage.getItem(transferKey);
+      const previous = sessionStorage.getItem(documentSessionKey);
       if (transferred !== null) {
         sessionStorage.removeItem(transferKey);
         if (transferred.length <= MAX_SOURCE) source.value = transferred;
         else showToast('Document limit: 100,000 characters');
-      }
+      } else if (previous !== null && previous.length <= MAX_SOURCE) source.value = previous;
     } catch { /* The document remains usable when browser storage is unavailable. */ }
     render();
+    keepDocumentInTab();
+    window.addEventListener('pagehide', keepDocumentInTab);
   </script>
 </body>
 </html>

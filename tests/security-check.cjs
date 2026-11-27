@@ -161,6 +161,11 @@ async function main() {
         if (window.evil || !payload.html || /onerror|onclick|script|blocked/i.test(payload.html)) throw Error('Unsafe HTML escaped into output');
         preparePrint();
         document.getElementById('clear-private').click();
+        if (!document.getElementById('clear-editor-dialog').open || !editor.value) throw Error('Editor clear confirmation missing');
+        document.getElementById('clear-editor-cancel').click();
+        if (!editor.value) throw Error('Cancel cleared the editor');
+        document.getElementById('clear-private').click();
+        document.getElementById('clear-editor-confirm').click();
         if (editor.value || localStorage.getItem('plain-text-cleaner.document.v1') !== null || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Privacy clear failed');
         await new Promise(resolve => setTimeout(resolve, 50));
         if (window.cspViolations.some(item => item.directive === 'style-src-attr')) throw Error('Printed tables used blocked inline styles: ' + JSON.stringify(window.cspViolations));
@@ -270,15 +275,73 @@ async function main() {
         if (!copied.includes('<table>') || !copied.includes('<th>')) throw Error('Table not copyable as HTML');
         if (document.documentElement.scrollWidth > innerWidth) throw Error('Document page overflows on mobile');
         if (window.cspViolations.length) throw Error('Document violated CSP: ' + JSON.stringify(window.cspViolations));
-        return { status: 'PASS', violations: window.cspViolations };
+        return { status: 'PASS', violations: window.cspViolations, documentText: source.value };
       })()`, awaitPromise: true, returnByValue: true
     }, sessionId);
     if (documentResult.exceptionDetails) throw Error(documentResult.exceptionDetails.exception?.description || JSON.stringify(documentResult.exceptionDetails));
+    const documentText = documentResult.result.value.documentText;
     const documentReloaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
     await send('Page.reload', {}, sessionId);
     await documentReloaded;
-    const oneShot = await send('Runtime.evaluate', { expression: "document.getElementById('source').value === '' && sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') === null", returnByValue: true }, sessionId);
-    if (!oneShot.result.value) throw Error('Transferred text persisted after Document reload');
+    const restored = await send('Runtime.evaluate', { expression: `(() => {
+      if (document.getElementById('source').value !== ${JSON.stringify(documentText)} || sessionStorage.getItem('plain-text-cleaner.document-transfer.v1') !== null) throw Error('Document was not restored on reload');
+      document.getElementById('editor-link').click();
+      if (!document.getElementById('return-dialog').open) throw Error('Return confirmation did not open');
+      document.getElementById('return-cancel').click();
+      if (document.getElementById('return-dialog').open || location.pathname !== '/document') throw Error('Return cancel lost the Document');
+      document.getElementById('editor-link').click();
+      return true;
+    })()`, returnByValue: true }, sessionId);
+    if (restored.exceptionDetails) throw Error(restored.exceptionDetails.exception?.description || JSON.stringify(restored.exceptionDetails));
+    const backLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('return-confirm').click()", returnByValue: true }, sessionId);
+    await backLoaded;
+    const existingChoice = await send('Runtime.evaluate', { expression: `(() => {
+      if (document.getElementById('text').value !== ${JSON.stringify(transferredText)} || localStorage.getItem('plain-text-cleaner.save-drafts.v1') !== 'false') throw Error('Clean Text was lost when returning');
+      document.getElementById('document-link').click();
+      if (!document.getElementById('document-choice').open) throw Error('Replace confirmation did not open');
+      document.getElementById('document-choice-cancel').click();
+      if (document.getElementById('document-choice').open || location.pathname !== '/editor') throw Error('Replace cancel did not keep Clean Text');
+      document.getElementById('document-link').click();
+      return true;
+    })()`, returnByValue: true }, sessionId);
+    if (existingChoice.exceptionDetails) throw Error(existingChoice.exceptionDetails.exception?.description || JSON.stringify(existingChoice.exceptionDetails));
+    const existingLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('document-choice-open').click()", returnByValue: true }, sessionId);
+    await existingLoaded;
+    const existing = await send('Runtime.evaluate', { expression: `document.getElementById('source').value === ${JSON.stringify(documentText)}`, returnByValue: true }, sessionId);
+    if (!existing.result.value) throw Error('Opening existing Document replaced its content');
+    const returnAgainLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('editor-link').click(); document.getElementById('return-confirm').click()", returnByValue: true }, sessionId);
+    await returnAgainLoaded;
+    const replaceChoice = await send('Runtime.evaluate', { expression: `(() => {
+      const editor = document.getElementById('text');
+      if (editor.value !== ${JSON.stringify(transferredText)}) throw Error('Clean Text changed while opening existing Document');
+      editor.value = 'Replacement draft'; editor.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('document-link').click();
+      if (!document.getElementById('document-choice').open) throw Error('Replace confirmation missing');
+      return true;
+    })()`, returnByValue: true }, sessionId);
+    if (replaceChoice.exceptionDetails) throw Error(replaceChoice.exceptionDetails.exception?.description || JSON.stringify(replaceChoice.exceptionDetails));
+    const replacedLoaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Runtime.evaluate', { expression: "document.getElementById('document-choice-replace').click()", returnByValue: true }, sessionId);
+    await replacedLoaded;
+    const clearCheck = await send('Runtime.evaluate', { expression: `(() => {
+      if (document.getElementById('source').value !== 'Replacement draft') throw Error('Confirmed replacement did not arrive');
+      document.getElementById('clear').click();
+      if (!document.getElementById('clear-dialog').open) throw Error('Clear confirmation missing');
+      document.getElementById('clear-cancel').click();
+      if (document.getElementById('source').value !== 'Replacement draft') throw Error('Clear cancel lost content');
+      document.getElementById('clear').click(); document.getElementById('clear-confirm').click();
+      if (document.getElementById('source').value || sessionStorage.getItem('plain-text-cleaner.document-session.v1') !== null) throw Error('Confirmed clear did not remove Document');
+      return true;
+    })()`, returnByValue: true }, sessionId);
+    if (clearCheck.exceptionDetails) throw Error(clearCheck.exceptionDetails.exception?.description || JSON.stringify(clearCheck.exceptionDetails));
+    const clearedReloaded = new Promise(resolve => events.set('Page.loadEventFired', resolve));
+    await send('Page.reload', {}, sessionId);
+    await clearedReloaded;
+    const cleared = await send('Runtime.evaluate', { expression: "document.getElementById('source').value === '' && sessionStorage.getItem('plain-text-cleaner.document-session.v1') === null", returnByValue: true }, sessionId);
+    if (!cleared.result.value) throw Error('Cleared Document came back after reload');
     process.stdout.write(JSON.stringify(documentResult.result.value) + '\n');
     process.stdout.write(JSON.stringify(result.result.value) + '\n');
   } finally {

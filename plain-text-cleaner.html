@@ -79,6 +79,13 @@
     input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
     .toast { position: fixed; top: max(16px, env(safe-area-inset-top)); right: 20px; z-index: 5; width: max-content; max-width: min(240px, calc(100% - 40px)); padding: 8px 12px; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; color: #37352f; font-size: 13px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; pointer-events: none; opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.98); transform-origin: top right; transition: opacity .24s ease, transform .24s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .24s; }
     .toast.visible { opacity: 1; visibility: visible; transform: translateY(0) scale(1); transition-delay: 0s; }
+    .switch-dialog { width: min(420px, calc(100% - 32px)); padding: 20px; border: 1px solid #e7e7e5; border-radius: 8px; color: #37352f; background: #fff; box-shadow: 0 12px 32px #0b202729; }
+    .switch-dialog::backdrop { background: #0b20274d; }
+    .switch-dialog h2 { margin: 0 0 8px; font-size: 17px; }
+    .switch-dialog p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+    .switch-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .switch-dialog-actions .replace { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .switch-dialog-actions .danger { background: #a22f2f; color: #fff; border-color: #a22f2f; }
     @media (min-width: 1100px) { .toast { max-width: min(240px, calc((100% - var(--document-width, 760px)) / 2 - 32px)); } }
     @media (prefers-reduced-motion: reduce) { .toast { transition: none; transform: none; } }
     main { padding: 32px 48px 180px; }
@@ -300,6 +307,20 @@
     </div>
   </main>
   <div id="message" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="document-choice" class="switch-dialog" aria-labelledby="document-choice-title">
+    <h2 id="document-choice-title">Document already has content</h2>
+    <p>Open the existing Document, or replace it with the current Clean Text?</p>
+    <div class="switch-dialog-actions">
+      <button id="document-choice-cancel" type="button">CANCEL</button>
+      <button id="document-choice-open" type="button">KEEP EXISTING</button>
+      <button id="document-choice-replace" class="replace" type="button">REPLACE</button>
+    </div>
+  </dialog>
+  <dialog id="clear-editor-dialog" class="switch-dialog" aria-labelledby="clear-editor-title">
+    <h2 id="clear-editor-title">Clear editor and saved drafts?</h2>
+    <p>This removes the Clean Text content and its saved drafts. It cannot be undone.</p>
+    <div class="switch-dialog-actions"><button id="clear-editor-cancel" type="button">CANCEL</button><button id="clear-editor-confirm" class="danger" type="button">CLEAR</button></div>
+  </dialog>
   <section id="print-document" class="print-document" aria-label="Cleaned document"></section>
   <!-- Ranked English word data adapted from https://github.com/keredson/wordninja
        MIT License
@@ -953,6 +974,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     const words = new Intl.Segmenter(undefined, { granularity: 'word' });
     const storageKey = 'plain-text-cleaner.document.v1';
     const documentTransferKey = 'plain-text-cleaner.document-transfer.v1';
+    const editorSessionKey = 'plain-text-cleaner.editor-session.v1';
+    const documentSessionKey = 'plain-text-cleaner.document-session.v1';
     const tableStorageKey = 'plain-text-cleaner.tables.v1';
     const saveDraftsKey = 'plain-text-cleaner.save-drafts.v1';
     const saveDraftsToggle = byId('save-drafts');
@@ -996,6 +1019,19 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         tables = savedTables.tables.filter(table => Number.isInteger(table.start) && Number.isInteger(table.end) && table.start >= 0 && table.end > table.start && table.end <= input.value.length && Array.isArray(table.layout) && table.layout.length <= MAX_TABLE_CELLS);
       }
     } catch { /* A damaged table draft must not prevent restoring the text. */ }
+    try {
+      const session = sessionStorage.getItem(editorSessionKey);
+      if (session !== null) {
+        sessionStorage.removeItem(editorSessionKey);
+        const restored = JSON.parse(session);
+        if (typeof restored.value === 'string' && restored.value.length <= MAX_DOCUMENT_CHARS) {
+          input.value = restored.value;
+          tables = Array.isArray(restored.tables) && restored.tables.length <= MAX_TABLE_CELLS
+            ? restored.tables.filter(table => Number.isInteger(table.start) && Number.isInteger(table.end) && table.start >= 0 && table.end > table.start && table.end <= input.value.length && Array.isArray(table.layout)) : [];
+          saveStatus.textContent = saveDraftsEnabled ? 'Restored · saved in this browser only' : 'Restored in this tab';
+        }
+      }
+    } catch { /* A missing or damaged session must not replace the editor. */ }
     tableStateValue = input.value;
     saveDraftsToggle.addEventListener('change', () => {
       saveDraftsEnabled = saveDraftsToggle.checked;
@@ -2469,7 +2505,11 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
     byId('undo').addEventListener('click', () => restore(-1));
     byId('redo').addEventListener('click', () => restore(1));
     byId('clear').addEventListener('click', () => { replaceDocument('', 'Cleared · Undo to restore'); save(); });
-    byId('clear-private').addEventListener('click', () => {
+    const clearEditorDialog = byId('clear-editor-dialog');
+    byId('clear-private').addEventListener('click', () => clearEditorDialog.showModal());
+    byId('clear-editor-cancel').addEventListener('click', () => clearEditorDialog.close());
+    byId('clear-editor-confirm').addEventListener('click', () => {
+      clearEditorDialog.close();
       clearTimeout(saveTimer);
       saveTimer = null;
       closeSplit();
@@ -2490,6 +2530,8 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
         localStorage.setItem(saveDraftsKey, 'false');
         localStorage.removeItem(storageKey);
         localStorage.removeItem(tableStorageKey);
+        sessionStorage.removeItem(editorSessionKey);
+        sessionStorage.removeItem(documentTransferKey);
       } catch { storageReady = false; cleared = false; }
       legacyDraftPresent = !cleared;
       saveStatus.textContent = cleared ? 'Not saved in this browser' : 'Could not clear browser storage';
@@ -2603,17 +2645,46 @@ oeste tomohiro unchallenged laksa consequat trackers kaczorowski tumultuous grec
       showMessage(payload.html ? 'Copied with tables' : 'Copied!');
     });
     window.addEventListener('resize', resizePage);
+    function saveEditorSession() {
+      try {
+        if (!input.value) { sessionStorage.removeItem(editorSessionKey); return true; }
+        reconcileTables();
+        sessionStorage.setItem(editorSessionKey, JSON.stringify({ value: input.value, tables }));
+        return true;
+      } catch { return false; }
+    }
+
+    function openDocument(replace) {
+      if (replace && input.value.length > 100000) { showMessage('Document limit: 100,000 characters'); return; }
+      if (!saveEditorSession()) { showMessage('Could not keep Clean Text in this tab'); return; }
+      try {
+        if (replace && input.value) sessionStorage.setItem(documentTransferKey, input.value);
+        else sessionStorage.removeItem(documentTransferKey);
+      } catch { showMessage('Could not transfer text in this browser'); return; }
+      if (documentChoice.open) documentChoice.close();
+      location.assign('/document');
+    }
+
+    const documentChoice = byId('document-choice');
+    byId('document-choice-cancel').addEventListener('click', () => documentChoice.close());
+    byId('document-choice-open').addEventListener('click', () => openDocument(false));
+    byId('document-choice-replace').addEventListener('click', () => openDocument(true));
     byId('document-link').addEventListener('click', event => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
         if (input.value) { event.preventDefault(); showMessage('Use a normal click to transfer text'); }
         return;
       }
-      if (!input.value) { try { sessionStorage.removeItem(documentTransferKey); } catch { /* Empty Document can still open. */ } return; }
-      if (input.value.length > 100000) { event.preventDefault(); showMessage('Document limit: 100,000 characters'); return; }
-      try { sessionStorage.setItem(documentTransferKey, input.value); }
-      catch { event.preventDefault(); showMessage('Could not transfer text in this browser'); }
+      event.preventDefault();
+      let existing;
+      try { existing = sessionStorage.getItem(documentSessionKey); }
+      catch { showMessage('Could not read Document in this browser'); return; }
+      if (existing && input.value && existing !== input.value) documentChoice.showModal();
+      else openDocument(Boolean(input.value) && !existing);
     });
-    window.addEventListener('pagehide', () => { if (saveTimer) save(); });
+    window.addEventListener('pagehide', () => {
+      if (saveTimer) save();
+      try { if (sessionStorage.getItem(documentSessionKey) !== null) saveEditorSession(); } catch { /* Tab storage may be unavailable. */ }
+    });
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveTimer) save(); });
     update();
     if (location.protocol === 'https:' || location.protocol === 'http:') {
