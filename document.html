@@ -10,37 +10,34 @@
   <style>
     @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Regular-latin.woff2') format('woff2'); font-style: normal; font-weight: 400; font-display: swap; }
     @font-face { font-family: Ubuntu; src: url('/fonts/Ubuntu-Bold-latin.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
-    :root { font-family: Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #37352f; background: #f6f6f4; }
+    :root { font-family: Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #37352f; background: #fff; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; }
+    [hidden] { display: none !important; }
     button, textarea { font: inherit; }
     button { border: 0; cursor: pointer; }
-    button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid #0b2027; outline-offset: 3px; }
+    button:focus-visible, a:focus-visible { outline: 2px solid #0b2027; outline-offset: 3px; }
     button:disabled { opacity: .45; cursor: not-allowed; }
-    .topbar { display: flex; align-items: center; gap: 20px; min-height: 68px; padding: 12px clamp(20px, 4vw, 56px); border-bottom: 1px solid #e7e7e5; background: #fff; }
-    .brand { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; color: #0b2027; font-size: 13px; font-weight: 700; text-decoration: none; }
-    .brand img { width: 22px; height: 22px; }
-    nav { display: flex; align-items: center; gap: 4px; }
-    nav a { padding: 9px 12px; border-radius: 5px; color: #62615c; font-size: 12px; font-weight: 700; text-decoration: none; }
-    nav a:hover { background: #f3f3f1; }
-    nav a[aria-current='page'] { background: #edf1f0; color: #0b2027; }
-    .top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .brand { position: fixed; top: 16px; left: 16px; z-index: 2; display: block; width: 24px; height: 24px; }
+    .brand img { display: block; width: 24px; height: 24px; }
+    .editor-link { position: fixed; top: 17px; left: 52px; z-index: 2; padding: 4px 6px; border-radius: 4px; color: #526068; font-size: 11px; font-weight: 700; text-decoration: none; }
+    .editor-link:hover { background: #f1f1ef; color: #0b2027; }
+    .toolbar { position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; z-index: 3; width: max-content; max-width: calc(100% - 32px); padding: 8px; transform: translateX(-50%); border: 1px solid #e7e7e5; border-radius: 8px; background: #ffffffed; box-shadow: 0 4px 20px #0b20270d, 0 1px 4px #0b202708; backdrop-filter: blur(16px); }
+    .actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
     .copy { min-height: 38px; padding: 8px 18px; border-radius: 5px; background: #0b2027; color: #fff; font-size: 12px; font-weight: 700; transition: background-color .2s ease; }
     .copy.copied { background: #17804a; opacity: 1; }
     .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 5px; background: transparent; color: #323944; }
     .icon-button:hover:not(:disabled) { background: #f1f1ef; }
+    .icon-button[aria-pressed='true'] { background: #edf1f0; color: #0b2027; }
     .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .workspace { display: grid; grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.15fr); gap: clamp(16px, 2.5vw, 32px); max-width: 1540px; margin: 0 auto; padding: clamp(20px, 3vw, 40px); }
-    .source-pane, .preview-pane { min-width: 0; }
-    .pane-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
-    h1, h2 { margin: 0; color: #0b2027; font-size: 16px; font-weight: 700; }
-    .pane-heading span { color: #777671; font-size: 12px; }
-    .source-note { margin: 0 0 16px; color: #777671; font-size: 13px; line-height: 1.5; }
-    textarea { display: block; width: 100%; min-height: min(70vh, 900px); padding: 20px; resize: vertical; border: 1px solid #e2e2df; border-radius: 6px; background: #fff; color: #37352f; font-size: 15px; line-height: 1.65; white-space: pre-wrap; tab-size: 4; }
+    main { padding: 32px 48px 180px; }
+    .paper { max-width: 760px; min-height: max(320px, calc(100svh - 340px)); margin: 0 auto; padding: 8px 0; overflow-wrap: anywhere; }
+    .document-content, textarea { font-size: 16px; line-height: 1.75; }
+    .document-content:focus, textarea:focus { outline: none; }
+    textarea { display: block; width: 100%; min-height: max(320px, calc(100svh - 340px)); padding: 0; resize: none; border: 0; border-radius: 0; background: transparent; color: inherit; white-space: pre-wrap; tab-size: 1; }
     textarea::placeholder { color: #9a9995; }
-    .paper { min-height: min(70vh, 900px); padding: clamp(24px, 4vw, 58px); border: 1px solid #e7e7e5; border-radius: 5px; background: #fff; box-shadow: 0 2px 12px #0b202708; overflow-wrap: anywhere; }
     .empty { margin: 0; color: #9a9995; font-size: 15px; }
-    .document-content { font-size: 15px; line-height: 1.7; }
+    .document-content { min-height: max(320px, calc(100svh - 340px)); }
     .document-content > *:first-child { margin-top: 0; }
     .document-content p, .document-content h1, .document-content h2, .document-content h3, .document-content h4, .document-content h5, .document-content h6 { margin: 0 0 1em; }
     .document-content h1 { font-size: 26px; }
@@ -58,35 +55,30 @@
     .document-content .formula-error { color: #7e3838; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
     .document-content pre { overflow: auto; margin: 0 0 1em; padding: 12px; background: #f6f6f4; font-size: 13px; }
     .document-content .katex-display { margin: .45em 0; }
-    .status { margin: 12px 0 0; min-height: 20px; color: #777671; font-size: 12px; }
-    .toast { position: fixed; top: 80px; right: 20px; z-index: 10; max-width: 280px; padding: 9px 13px; border: 1px solid #e7e7e5; border-radius: 5px; background: #fff; box-shadow: 0 6px 20px #0b202718; font-size: 13px; opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; pointer-events: none; }
+    .statusbar { position: fixed; right: 20px; bottom: max(24px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 180px; color: #616975; font-size: 11px; line-height: 1.4; text-align: right; }
+    .status { margin: 0; }
+    .toast { position: fixed; top: 16px; right: 20px; z-index: 10; max-width: 240px; padding: 8px 12px; border: 1px solid #e7e7e5; border-radius: 4px; background: #fff; box-shadow: 0 6px 20px #0b202718; font-size: 13px; opacity: 0; visibility: hidden; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; pointer-events: none; }
     .toast.visible { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-    @media (max-width: 800px) { .workspace { grid-template-columns: 1fr; } textarea { min-height: 240px; } .paper { min-height: 360px; } }
-    @media (max-width: 560px) { .topbar { flex-wrap: wrap; gap: 8px; } nav { order: 3; width: 100%; } .top-actions { margin-left: auto; } .workspace { padding: 20px; } }
+    @media (max-width: 1279px) { .statusbar { position: static; max-width: 760px; margin: 12px auto 0; } }
+    @media (max-width: 600px) { .toolbar { bottom: max(12px, env(safe-area-inset-bottom)); max-width: calc(100% - 24px); } .actions { gap: 4px; } main { padding: 72px 24px 180px; } .paper, .document-content, textarea { min-height: 50svh; } }
     @media (prefers-reduced-motion: reduce) { .copy, .toast { transition: none; } }
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="Back to home"><img src="/text-cleaner-logo.svg" alt="" width="22" height="22"><span>Plain Text Cleaner</span></a>
-    <nav aria-label="Tools"><a href="/editor">CLEAN TEXT</a><a href="/document" aria-current="page">DOCUMENT</a></nav>
-    <div class="top-actions">
-      <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
-      <button id="copy" class="copy" disabled>COPY</button>
+  <a class="brand" href="/" aria-label="Back to home"><img src="/text-cleaner-logo.svg" alt="" width="24" height="24"></a>
+  <a class="editor-link" href="/editor">CLEAN TEXT</a>
+  <section class="toolbar" aria-label="Document controls"><div class="actions">
+    <button id="copy" class="copy" disabled>COPY</button>
+    <button id="paste" class="icon-button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H5a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3M12 10v7m-3-3 3 3 3-3"/></svg></button>
+    <button id="source-toggle" class="icon-button" aria-label="Show source" title="Show source" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"/></svg></button>
+    <button id="clear" class="icon-button" disabled aria-label="Clear document" title="Clear document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button>
+  </div></section>
+  <main>
+    <div class="paper" id="paper">
+      <div id="content" class="document-content" tabindex="0" aria-label="Document. Paste here or open Source to type."><p class="empty">Paste text here, or open Source to type…</p></div>
+      <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false" hidden></textarea>
     </div>
-  </header>
-  <main class="workspace">
-    <section class="source-pane" aria-labelledby="source-title">
-      <div class="pane-heading"><h1 id="source-title">Source</h1><span>Editable text</span></div>
-      <p class="source-note">Paste text, tables, lists or LaTeX, or send cleaned text from Clean Text. The document updates in your browser.</p>
-      <textarea id="source" aria-label="Document source" placeholder="Paste or type text here…" maxlength="100000" spellcheck="false"></textarea>
-      <p class="status" id="source-status">Nothing pasted yet</p>
-    </section>
-    <section class="preview-pane" aria-labelledby="preview-title">
-      <div class="pane-heading"><h2 id="preview-title">Document</h2><span>Structure preview</span></div>
-      <div class="paper"><div id="content" class="document-content"><p class="empty">Your document will appear here.</p></div></div>
-      <p class="status" id="document-status" role="status" aria-live="polite">Ready</p>
-    </section>
+    <div class="statusbar"><p class="status" id="document-status" role="status" aria-live="polite">Ready</p><p class="status" id="source-status">Nothing pasted yet</p></div>
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="/vendor/katex/katex.min.js" integrity="sha256-+hQEmLjPyDAsvl58sb28H5Urw4s/oljt4J5z7b+adLw=" crossorigin="anonymous"></script>
@@ -95,6 +87,8 @@
     const content = document.getElementById('content');
     const copyButton = document.getElementById('copy');
     const clearButton = document.getElementById('clear');
+    const pasteButton = document.getElementById('paste');
+    const sourceToggle = document.getElementById('source-toggle');
     const status = document.getElementById('document-status');
     const toast = document.getElementById('toast');
     const MAX_SOURCE = 100000;
@@ -105,6 +99,7 @@
     let renderTimer;
     let copyTimer;
     let toastTimer;
+    let sourceMode = false;
 
     const ignoreTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'SVG', 'IMG', 'PICTURE', 'SOURCE', 'VIDEO', 'AUDIO', 'FORM', 'LINK', 'META']);
     const tidy = value => value.replace(/\r\n?/g, '\n').replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/gu, ' ').replace(/[ \t]+/gu, ' ').trim();
@@ -311,7 +306,7 @@
       blocks = parseDocument(source.value);
       content.replaceChildren();
       if (!blocks.length) {
-        const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Your document will appear here.';
+        const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = 'Paste text here, or open Source to type…';
         content.append(empty);
       }
       for (const block of blocks) {
@@ -351,18 +346,62 @@
       toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000);
     }
 
+    function setSourceMode(enabled) {
+      sourceMode = enabled;
+      source.hidden = !enabled;
+      content.hidden = enabled;
+      sourceToggle.setAttribute('aria-pressed', String(enabled));
+      sourceToggle.setAttribute('aria-label', enabled ? 'Show document' : 'Show source');
+      sourceToggle.title = enabled ? 'Show document' : 'Show source';
+      if (enabled) source.focus({ preventScroll: true });
+      else { render(); content.focus({ preventScroll: true }); }
+    }
+
+    function insertValue(plain, html = '') {
+      const value = richSource(html) || plain;
+      if (!value) return false;
+      const start = sourceMode ? source.selectionStart : source.value.length;
+      const end = sourceMode ? source.selectionEnd : source.value.length;
+      const insert = sourceMode || !source.value.trim() ? value : '\n\n' + value;
+      if (source.value.length - (end - start) + insert.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return false; }
+      source.setRangeText(insert, start, end, 'end');
+      render();
+      return true;
+    }
+
     source.addEventListener('input', () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 80); });
     source.addEventListener('paste', event => {
       const plain = event.clipboardData?.getData('text/plain') || '';
       const html = event.clipboardData?.getData('text/html') || '';
-      const value = richSource(html) || plain;
-      if (!value) return;
+      if (!plain && !html) return;
       event.preventDefault();
-      if (source.value.length - (source.selectionEnd - source.selectionStart) + value.length > MAX_SOURCE) { showToast('Document limit: 100,000 characters'); return; }
-      source.setRangeText(value, source.selectionStart, source.selectionEnd, 'end');
-      render();
+      insertValue(plain, html);
     });
-    clearButton.addEventListener('click', () => { source.value = ''; render(); source.focus(); showToast('Document cleared'); });
+    document.addEventListener('paste', event => {
+      if (sourceMode || event.target === source) return;
+      const plain = event.clipboardData?.getData('text/plain') || '';
+      const html = event.clipboardData?.getData('text/html') || '';
+      if (!plain && !html) return;
+      event.preventDefault();
+      insertValue(plain, html);
+    });
+    sourceToggle.addEventListener('click', () => setSourceMode(!sourceMode));
+    pasteButton.addEventListener('click', async () => {
+      try {
+        let plain = '', html = '';
+        if (navigator.clipboard?.read) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            if (item.types.includes('text/plain')) { const blob = await item.getType('text/plain'); if (blob.size > MAX_SOURCE * 4) throw Error('size'); plain = await blob.text(); }
+            if (item.types.includes('text/html')) { const blob = await item.getType('text/html'); if (blob.size > 1000000) throw Error('size'); html = await blob.text(); }
+            if (plain || html) break;
+          }
+        } else if (navigator.clipboard?.readText) plain = await navigator.clipboard.readText();
+        else { showToast('Press Ctrl/Cmd+V to paste'); return; }
+        if (!insertValue(plain, html)) showToast(plain || html ? 'Document limit: 100,000 characters' : 'Clipboard is empty');
+      } catch (error) { showToast(error.message === 'size' ? 'Clipboard content is too large' : 'Press Ctrl/Cmd+V to paste'); }
+    });
+    clearButton.addEventListener('click', () => { source.value = ''; render(); setSourceMode(false); showToast('Document cleared'); });
     copyButton.addEventListener('click', async () => {
       if (!source.value.trim()) return;
       const plain = source.value;
